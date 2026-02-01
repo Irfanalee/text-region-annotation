@@ -4,6 +4,7 @@ A full-stack annotation tool for creating OCR training datasets from whiteboard/
 
 ## Features
 
+- **Image Upload**: Upload images directly via the UI or place in folder
 - **Image Management**: Load images from a configurable directory with thumbnail previews
 - **Annotation Canvas**: Draw bounding boxes with zoom/pan support
 - **Box Editing**: Resize and move boxes after creation with 8-point handles
@@ -154,6 +155,8 @@ text-region-annotation/
 |--------|----------|-------------|
 | GET | `/api/images/` | List all images |
 | GET | `/api/images/{filename}` | Serve image file |
+| POST | `/api/images/upload` | Upload image files |
+| DELETE | `/api/images/{filename}` | Delete image and annotations |
 | GET | `/api/annotations/{filename}` | Get annotations for image |
 | POST | `/api/annotations/{filename}` | Create annotation |
 | PUT | `/api/annotations/{filename}/{id}` | Update annotation |
@@ -162,6 +165,19 @@ text-region-annotation/
 | POST | `/api/export/yolo` | Export YOLO format |
 | POST | `/api/export/coco` | Export COCO format |
 | POST | `/api/export/trocr` | Export TrOCR format |
+
+## Future Improvements
+
+- [ ] **Cloud Storage Integration**: Import images from Google Drive, OneDrive, Dropbox
+- [ ] **Auto-detect Text Regions**: Run EAST/CRAFT text detection to pre-populate boxes
+- [ ] **Undo/Redo**: History stack for annotation actions
+- [ ] **Crop Preview**: Show cropped region preview when box selected
+- [ ] **Progress Tracking**: Mark images as "complete" when all boxes transcribed
+- [ ] **Validation Warnings**: Warn on empty transcriptions before export
+- [ ] **Dark/Light Theme**: Toggle between color themes
+- [ ] **Batch Operations**: Select and delete multiple annotations
+- [ ] **Custom Classes**: Support multiple annotation categories beyond "text"
+- [ ] **Import Annotations**: Import existing YOLO/COCO annotations
 
 ## License
 

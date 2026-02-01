@@ -57,3 +57,21 @@ class ExportResponse(BaseModel):
     format: str
     file_count: int = 0
     annotation_count: int = 0
+
+
+class UploadedImage(BaseModel):
+    filename: str
+    width: int
+    height: int
+
+
+class UploadError(BaseModel):
+    filename: str
+    error: str
+
+
+class UploadResponse(BaseModel):
+    uploaded: list[UploadedImage]
+    failed: list[UploadError]
+    total_uploaded: int
+    total_failed: int
