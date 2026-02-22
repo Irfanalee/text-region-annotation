@@ -6,6 +6,7 @@ interface ImageListResponse {
   width: number;
   height: number;
   annotation_count: number;
+  is_sample: boolean;
 }
 
 export interface UploadResponse {
@@ -22,6 +23,7 @@ export async function fetchImages(): Promise<ImageData[]> {
     width: img.width,
     height: img.height,
     annotationCount: img.annotation_count,
+    isSample: img.is_sample,
   }));
 }
 
@@ -47,5 +49,12 @@ export async function uploadImages(files: FileList): Promise<UploadResponse> {
 export async function deleteImage(filename: string): Promise<void> {
   await fetchJSON(`/images/${encodeURIComponent(filename)}`, {
     method: 'DELETE',
+  });
+}
+
+export async function markAsSample(filename: string, isSample: boolean): Promise<void> {
+  await fetchJSON(`/images/${encodeURIComponent(filename)}/sample`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_sample: isSample }),
   });
 }

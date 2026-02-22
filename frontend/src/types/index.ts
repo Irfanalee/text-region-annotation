@@ -13,6 +13,7 @@ export interface ImageData {
   width: number;
   height: number;
   annotationCount: number;
+  isSample?: boolean;
 }
 
 export interface ImageAnnotations {

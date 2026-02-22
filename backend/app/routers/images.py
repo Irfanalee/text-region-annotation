@@ -8,7 +8,7 @@ import shutil
 import uuid
 
 from ..config import settings
-from ..schemas import ImageListItem, UploadResponse
+from ..schemas import ImageListItem, SetSampleRequest, UploadResponse
 from ..database import SessionLocal
 from ..models import ImageRecord
 
@@ -55,6 +55,7 @@ async def list_images():
                 width = image_record.width
                 height = image_record.height
                 annotation_count = len(image_record.annotations)
+                is_sample = image_record.is_sample or False
             else:
                 # New image - get dimensions and create record
                 try:
@@ -67,6 +68,7 @@ async def list_images():
                     db.add(image_record)
                     db.commit()
                     annotation_count = 0
+                    is_sample = False
                 except Exception:
                     continue
 
@@ -74,7 +76,8 @@ async def list_images():
                 filename=filename,
                 width=width,
                 height=height,
-                annotation_count=annotation_count
+                annotation_count=annotation_count,
+                is_sample=is_sample,
             ))
 
         return result
@@ -166,6 +169,23 @@ async def upload_images(files: List[UploadFile] = File(...)):
         total_uploaded=len(uploaded),
         total_failed=len(failed)
     )
+
+
+@router.patch("/{filename}/sample")
+async def set_sample_status(filename: str, body: SetSampleRequest):
+    """Mark or unmark an image as a sample for few-shot annotation."""
+    db = SessionLocal()
+    try:
+        image_record = db.query(ImageRecord).filter(
+            ImageRecord.filename == filename
+        ).first()
+        if not image_record:
+            raise HTTPException(status_code=404, detail="Image not found")
+        image_record.is_sample = body.is_sample
+        db.commit()
+        return {"filename": filename, "is_sample": body.is_sample}
+    finally:
+        db.close()
 
 
 @router.delete("/{filename}")

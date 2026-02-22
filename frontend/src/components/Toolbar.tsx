@@ -4,14 +4,19 @@ import { useImageStore } from '../store/imageStore';
 import { useAnnotationStore } from '../store/annotationStore';
 import { exportAnnotations, ExportFormat } from '../api/export';
 import { saveAnnotations } from '../api/annotations';
+import { fetchImages } from '../api/images';
+import { autoAnnotate } from '../api/claude';
 
 export const Toolbar: React.FC = () => {
   const { tool, setTool, transform, zoomIn, zoomOut, resetZoom } = useCanvasStore();
-  const { images, currentIndex, nextImage, prevImage } = useImageStore();
+  const { images, currentIndex, nextImage, prevImage, setImages } = useImageStore();
   const { annotations, isDirty, setSaving, markClean } = useAnnotationStore();
   const updateAnnotationCount = useImageStore((s) => s.updateAnnotationCount);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [annotating, setAnnotating] = useState(false);
+  const [annotateMessage, setAnnotateMessage] = useState<string | null>(null);
+  const [annotateError, setAnnotateError] = useState<string | null>(null);
 
   const currentImage = images[currentIndex];
   const zoomPercent = Math.round(transform.scale * 100);
@@ -33,7 +38,6 @@ export const Toolbar: React.FC = () => {
   };
 
   const handleExport = async (format: ExportFormat) => {
-    // Auto-save current annotations first if dirty
     if (currentImage && isDirty) {
       await handleSave();
     }
@@ -53,6 +57,44 @@ export const Toolbar: React.FC = () => {
       setExporting(null);
     }
   };
+
+  const handleAutoAnnotate = async () => {
+    // Auto-save first if dirty
+    if (currentImage && isDirty) {
+      await handleSave();
+    }
+
+    setAnnotating(true);
+    setAnnotateMessage(null);
+    setAnnotateError(null);
+
+    try {
+      const result = await autoAnnotate(false);
+      if (result.total_annotated === 0 && result.total_errors === 0) {
+        setAnnotateMessage('No images to annotate (all non-sample images already annotated).');
+      } else {
+        const parts: string[] = [];
+        if (result.total_annotated > 0)
+          parts.push(`${result.total_annotated} image${result.total_annotated !== 1 ? 's' : ''} annotated`);
+        if (result.total_errors > 0)
+          parts.push(`${result.total_errors} error${result.total_errors !== 1 ? 's' : ''}`);
+        setAnnotateMessage(parts.join(', ') + '.');
+      }
+      // Refresh image list so annotation counts update
+      const refreshed = await fetchImages();
+      setImages(refreshed);
+      setTimeout(() => setAnnotateMessage(null), 5000);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setAnnotateError(msg);
+      setTimeout(() => setAnnotateError(null), 6000);
+    } finally {
+      setAnnotating(false);
+    }
+  };
+
+  const sampleCount = images.filter((img) => img.isSample).length;
+  const canAnnotate = sampleCount > 0 && !annotating;
 
   return (
     <div className="h-12 bg-gray-100 border-b border-gray-300 flex items-center px-4 gap-4">
@@ -144,10 +186,49 @@ export const Toolbar: React.FC = () => {
         {isDirty ? 'Save*' : 'Saved'}
       </button>
 
+      {/* Auto-Annotate with Claude */}
+      <button
+        onClick={handleAutoAnnotate}
+        disabled={!canAnnotate}
+        title={
+          sampleCount === 0
+            ? 'Mark at least one image as a sample (★) and annotate it first'
+            : 'Auto-annotate remaining images using samples as few-shot examples'
+        }
+        className={`px-3 py-1.5 text-sm rounded flex items-center gap-1.5 ${
+          canAnnotate
+            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+        }`}
+      >
+        {annotating ? (
+          <>
+            <span className="animate-spin inline-block">&#8635;</span>
+            Annotating…
+          </>
+        ) : (
+          <>
+            <span>✦</span>
+            Auto-Annotate
+            {sampleCount > 0 && (
+              <span className="text-xs opacity-80">({sampleCount} sample{sampleCount !== 1 ? 's' : ''})</span>
+            )}
+          </>
+        )}
+      </button>
+
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Export Message */}
+      {/* Feedback messages */}
+      {annotateMessage && (
+        <span className="text-sm text-indigo-600 font-medium">{annotateMessage}</span>
+      )}
+      {annotateError && (
+        <span className="text-sm text-red-600 font-medium" title={annotateError}>
+          {annotateError.length > 60 ? annotateError.slice(0, 60) + '…' : annotateError}
+        </span>
+      )}
       {exportMessage && (
         <span className="text-sm text-green-600">{exportMessage}</span>
       )}

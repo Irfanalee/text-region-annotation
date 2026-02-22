@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -10,6 +11,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./annotations.db"
     allowed_extensions: list[str] = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]
     thumbnail_size: tuple[int, int] = (150, 150)
+    anthropic_api_key: Optional[str] = None
+    claude_model: str = "claude-sonnet-4-6"
 
     class Config:
         env_file = ".env"

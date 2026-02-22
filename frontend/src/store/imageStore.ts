@@ -12,6 +12,7 @@ interface ImageStore {
   nextImage: () => void;
   prevImage: () => void;
   updateAnnotationCount: (filename: string, count: number) => void;
+  toggleSample: (filename: string, isSample: boolean) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   getCurrentImage: () => ImageData | null;
@@ -55,6 +56,14 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set((state) => ({
       images: state.images.map((img) =>
         img.filename === filename ? { ...img, annotationCount: count } : img
+      ),
+    }));
+  },
+
+  toggleSample: (filename, isSample) => {
+    set((state) => ({
+      images: state.images.map((img) =>
+        img.filename === filename ? { ...img, isSample } : img
       ),
     }));
   },

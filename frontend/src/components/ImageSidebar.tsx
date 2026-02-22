@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { useImageStore } from '../store/imageStore';
 import { getImageUrl } from '../api/client';
-import { uploadImages, fetchImages } from '../api/images';
+import { uploadImages, fetchImages, markAsSample } from '../api/images';
 
 export const ImageSidebar: React.FC = () => {
-  const { images, currentIndex, setCurrentIndex, setImages, isLoading } = useImageStore();
+  const { images, currentIndex, setCurrentIndex, setImages, toggleSample, isLoading } =
+    useImageStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -24,15 +25,14 @@ export const ImageSidebar: React.FC = () => {
       const result = await uploadImages(files);
 
       if (result.total_uploaded > 0) {
-        // Refresh the image list
         const newImages = await fetchImages();
         setImages(newImages);
         setUploadMessage(`Uploaded ${result.total_uploaded} image(s)`);
       }
 
       if (result.total_failed > 0) {
-        const failedNames = result.failed.map(f => f.filename).join(', ');
-        setUploadMessage(prev =>
+        const failedNames = result.failed.map((f) => f.filename).join(', ');
+        setUploadMessage((prev) =>
           prev ? `${prev}. Failed: ${failedNames}` : `Failed: ${failedNames}`
         );
       }
@@ -44,10 +44,20 @@ export const ImageSidebar: React.FC = () => {
       setTimeout(() => setUploadMessage(null), 3000);
     } finally {
       setUploading(false);
-      // Reset input so same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleToggleSample = async (e: React.MouseEvent, filename: string, current: boolean) => {
+    e.stopPropagation();
+    const next = !current;
+    try {
+      await markAsSample(filename, next);
+      toggleSample(filename, next);
+    } catch (err) {
+      console.error('Failed to update sample status:', err);
     }
   };
 
@@ -102,25 +112,42 @@ export const ImageSidebar: React.FC = () => {
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-gray-500 text-center text-sm">
             <p>No images found</p>
-            <p className="mt-2 text-xs">Upload images or add to<br />dataset/images/</p>
+            <p className="mt-2 text-xs">
+              Upload images or add to
+              <br />
+              dataset/images/
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
+  const sampleCount = images.filter((img) => img.isSample).length;
+
   return (
     <div className="w-48 bg-gray-100 border-r border-gray-300 flex flex-col">
       <UploadButton />
       <div className="p-2 border-b border-gray-300 bg-gray-200">
         <h2 className="text-sm font-semibold text-gray-700">Images ({images.length})</h2>
+        {sampleCount > 0 && (
+          <p className="text-xs text-green-700 mt-0.5">
+            ★ {sampleCount} sample{sampleCount !== 1 ? 's' : ''} selected
+          </p>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {images.map((img, index) => (
           <div
             key={img.filename}
             className={`p-2 cursor-pointer border-b border-gray-200 hover:bg-gray-200 ${
-              index === currentIndex ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''
+              index === currentIndex
+                ? img.isSample
+                  ? 'bg-green-100 border-l-4 border-l-green-500'
+                  : 'bg-blue-100 border-l-4 border-l-blue-500'
+                : img.isSample
+                ? 'bg-green-50 border-l-4 border-l-green-400'
+                : ''
             }`}
             onClick={() => setCurrentIndex(index)}
           >
@@ -136,8 +163,21 @@ export const ImageSidebar: React.FC = () => {
                   {img.annotationCount}
                 </span>
               )}
+              {/* Sample toggle button */}
+              <button
+                onClick={(e) => handleToggleSample(e, img.filename, img.isSample ?? false)}
+                title={img.isSample ? 'Unmark as sample' : 'Mark as sample'}
+                className={`absolute bottom-1 left-1 text-xs px-1.5 py-0.5 rounded font-bold transition-colors ${
+                  img.isSample
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-white/80 text-gray-500 hover:bg-green-100 hover:text-green-700'
+                }`}
+              >
+                {img.isSample ? '★' : '☆'}
+              </button>
             </div>
             <p className="mt-1 text-xs text-gray-600 truncate" title={img.filename}>
+              {img.isSample && <span className="text-green-600 font-semibold">Sample · </span>}
               {img.filename}
             </p>
             <p className="text-xs text-gray-400">

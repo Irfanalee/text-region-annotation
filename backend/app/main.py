@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
-from .routers import images, annotations, export
+from .routers import images, annotations, export, claude
 
 app = FastAPI(
     title="OCR Annotation Tool API",
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(images.router)
 app.include_router(annotations.router)
 app.include_router(export.router)
+app.include_router(claude.router)
 
 
 @app.on_event("startup")

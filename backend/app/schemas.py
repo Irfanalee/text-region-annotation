@@ -39,6 +39,7 @@ class ImageListItem(BaseModel):
     width: int
     height: int
     annotation_count: int
+    is_sample: bool = False
 
 
 class ImageAnnotations(BaseModel):
@@ -75,3 +76,25 @@ class UploadResponse(BaseModel):
     failed: list[UploadError]
     total_uploaded: int
     total_failed: int
+
+
+class SetSampleRequest(BaseModel):
+    is_sample: bool
+
+
+class ClaudeAnnotateRequest(BaseModel):
+    overwrite_existing: bool = False
+
+
+class ClaudeAnnotateResult(BaseModel):
+    filename: str
+    status: str  # "success", "skipped", "error"
+    annotations_added: int = 0
+    message: str = ""
+
+
+class ClaudeAnnotateResponse(BaseModel):
+    results: list[ClaudeAnnotateResult]
+    total_annotated: int
+    total_skipped: int
+    total_errors: int
