@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useImageStore } from '../store/imageStore';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { useCanvasStore } from '../store/canvasStore';
+import { HelpModal } from './HelpModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { images, currentIndex } = useImageStore();
   const { labeledBoxes, isDirty } = useInvoiceStore();
   const { tool, transform } = useCanvasStore();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const currentImage = images[currentIndex];
   const labeledCount = labeledBoxes.filter((b) => b.fieldType !== 'unassigned').length;
@@ -23,8 +25,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <span>{images.length} images</span>
           <span>{labeledBoxes.length} boxes</span>
           <span>{labeledCount} labeled</span>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="ml-2 w-5 h-5 rounded-full border border-gray-400 text-gray-300 hover:bg-gray-600 hover:text-white flex items-center justify-center font-bold text-xs"
+            title="Help"
+          >
+            ?
+          </button>
         </div>
       </header>
+
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
 
       <main className="flex-1 flex overflow-hidden">{children}</main>
 
