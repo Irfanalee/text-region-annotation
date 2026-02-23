@@ -1,40 +1,41 @@
 import { useEffect, useCallback } from 'react';
 import { useCanvasStore } from '../store/canvasStore';
-import { useAnnotationStore } from '../store/annotationStore';
+import { useInvoiceStore } from '../store/invoiceStore';
 import { useImageStore } from '../store/imageStore';
-import { saveAnnotations } from '../api/annotations';
+import { saveInvoiceAnnotation } from '../api/invoice';
 
 export function useKeyboardShortcuts() {
   const { setTool, zoomIn, zoomOut } = useCanvasStore();
-  const { selectedId, deleteAnnotation, annotations, isDirty, setSaving, markClean } =
-    useAnnotationStore();
-  const { nextImage, prevImage, images, currentIndex, updateAnnotationCount } = useImageStore();
+  const {
+    selectedIds,
+    deleteBox,
+    isDirty,
+    setSaving,
+    markClean,
+    buildSavePayload,
+    createLineItem,
+  } = useInvoiceStore();
+  const { nextImage, prevImage, images, currentIndex, setIsAnnotated } = useImageStore();
 
   const currentImage = images[currentIndex];
 
   const handleSave = useCallback(async () => {
     if (!currentImage || !isDirty) return;
-
     setSaving(true);
     try {
-      const result = await saveAnnotations(currentImage.filename, annotations);
+      await saveInvoiceAnnotation(currentImage.filename, buildSavePayload());
       markClean();
-      updateAnnotationCount(currentImage.filename, result.annotations.length);
+      setIsAnnotated(currentImage.filename, true);
     } catch (error) {
       console.error('Failed to save:', error);
     } finally {
       setSaving(false);
     }
-  }, [currentImage, isDirty, annotations, setSaving, markClean, updateAnnotationCount]);
+  }, [currentImage, isDirty, buildSavePayload, setSaving, markClean, setIsAnnotated]);
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
-      // Ignore if typing in input field
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        // Allow Ctrl+S even in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
           e.preventDefault();
           await handleSave();
@@ -56,29 +57,29 @@ export function useKeyboardShortcuts() {
           break;
         case 'delete':
         case 'backspace':
-          if (selectedId !== null) {
+          if (selectedIds.size > 0) {
             e.preventDefault();
-            deleteAnnotation(selectedId);
+            [...selectedIds].forEach((id) => deleteBox(id));
           }
+          break;
+        case 'g':
+          if (selectedIds.size >= 2) {
+            e.preventDefault();
+            createLineItem([...selectedIds]);
+          }
+          break;
+        case 'escape':
+          useInvoiceStore.getState().clearSelection();
           break;
         case 'arrowleft':
           e.preventDefault();
-          // Auto-save before navigating
-          if (isDirty) {
-            await handleSave();
-          }
+          if (isDirty) await handleSave();
           prevImage();
           break;
         case 'arrowright':
           e.preventDefault();
-          // Auto-save before navigating
-          if (isDirty) {
-            await handleSave();
-          }
+          if (isDirty) await handleSave();
           nextImage();
-          break;
-        case 'escape':
-          useAnnotationStore.getState().clearSelection();
           break;
         case '=':
         case '+':
@@ -97,8 +98,9 @@ export function useKeyboardShortcuts() {
     },
     [
       setTool,
-      selectedId,
-      deleteAnnotation,
+      selectedIds,
+      deleteBox,
+      createLineItem,
       nextImage,
       prevImage,
       handleSave,
@@ -113,7 +115,6 @@ export function useKeyboardShortcuts() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Warn on unsaved changes before leaving
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -121,7 +122,6 @@ export function useKeyboardShortcuts() {
         e.returnValue = '';
       }
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);

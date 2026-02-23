@@ -3,27 +3,30 @@ import { Layout } from './components/Layout';
 import { Toolbar } from './components/Toolbar';
 import { ImageSidebar } from './components/ImageSidebar';
 import { AnnotationCanvas } from './components/AnnotationCanvas';
-import { AnnotationPanel } from './components/AnnotationPanel';
+import { FieldLabelDropdown } from './components/FieldLabelDropdown';
+import { InvoicePanel } from './components/InvoicePanel';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useImageStore } from './store/imageStore';
-import { useAnnotationStore } from './store/annotationStore';
+import { useInvoiceStore } from './store/invoiceStore';
 import { fetchImages } from './api/images';
-import { fetchAnnotations, saveAnnotations } from './api/annotations';
+import { fetchInvoiceAnnotation, saveInvoiceAnnotation } from './api/invoice';
+import { getOcrCache, runOcr } from './api/ocr';
 
 function App() {
-  const { images, currentIndex, setImages, setLoading, setError, updateAnnotationCount } = useImageStore();
-  const { setAnnotations, annotations, isDirty, setSaving, markClean } = useAnnotationStore();
+  const { images, currentIndex, setImages, setLoading, setError, setOcrStatus, setIsAnnotated } =
+    useImageStore();
+  const { clearAll, loadInvoiceAnnotation, setOcrBoxes, buildSavePayload, isDirty, setSaving, markClean } =
+    useInvoiceStore();
+
   const prevIndexRef = useRef<number | null>(null);
   const currentImage = images[currentIndex];
-  // Use filename string as dependency to avoid re-running when only metadata (e.g. annotationCount) changes
   const currentFilename = currentImage?.filename;
 
-  // Initialize keyboard shortcuts
   useKeyboardShortcuts();
 
   // Load images on mount
   useEffect(() => {
-    const loadImages = async () => {
+    const load = async () => {
       setLoading(true);
       try {
         const data = await fetchImages();
@@ -35,34 +38,31 @@ function App() {
         setLoading(false);
       }
     };
-
-    loadImages();
+    load();
   }, [setImages, setLoading, setError]);
 
-  // Load annotations when image changes
+  // On image change: save prev, load annotation + OCR for new
   useEffect(() => {
     if (!currentFilename) {
-      setAnnotations([]);
+      clearAll();
       return;
     }
 
     let cancelled = false;
-
-    // Capture prev index synchronously before any async work
     const prevIdx = prevIndexRef.current;
     prevIndexRef.current = currentIndex;
 
-    const saveAndLoad = async () => {
-      // Save previous image's annotations if dirty
+    const run = async () => {
+      // Auto-save previous image if dirty
       if (prevIdx !== null && prevIdx !== currentIndex && isDirty) {
         const prevImage = images[prevIdx];
         if (prevImage) {
           setSaving(true);
           try {
-            const result = await saveAnnotations(prevImage.filename, annotations);
-            if (!cancelled) updateAnnotationCount(prevImage.filename, result.annotations.length);
-          } catch (error) {
-            console.error('Failed to save previous annotations:', error);
+            await saveInvoiceAnnotation(prevImage.filename, buildSavePayload());
+            if (!cancelled) setIsAnnotated(prevImage.filename, true);
+          } catch (e) {
+            console.error('Failed to auto-save:', e);
           } finally {
             if (!cancelled) setSaving(false);
           }
@@ -70,32 +70,57 @@ function App() {
       }
 
       if (cancelled) return;
+      clearAll();
 
-      // Load new annotations
+      // Load existing annotation (always succeeds — returns empty structure if none)
       try {
-        const data = await fetchAnnotations(currentFilename);
-        if (!cancelled) setAnnotations(data.annotations);
-      } catch (error) {
-        console.error('Failed to load annotations:', error);
-        if (!cancelled) setAnnotations([]);
+        const annotation = await fetchInvoiceAnnotation(currentFilename);
+        if (!cancelled) loadInvoiceAnnotation(annotation);
+      } catch (e) {
+        console.error('Failed to load annotation:', e);
+      }
+
+      if (cancelled) return;
+
+      // Load OCR: try cache first, run if missing
+      try {
+        const cached = await getOcrCache(currentFilename);
+        if (!cancelled) {
+          setOcrBoxes(cached);
+          setOcrStatus(currentFilename, 'done');
+        }
+      } catch {
+        // 404 → run OCR
+        if (cancelled) return;
+        setOcrStatus(currentFilename, 'running');
+        try {
+          const boxes = await runOcr(currentFilename);
+          if (!cancelled) {
+            setOcrBoxes(boxes);
+            setOcrStatus(currentFilename, 'done');
+          }
+        } catch (e) {
+          console.error('OCR failed:', e);
+          if (!cancelled) setOcrStatus(currentFilename, 'error');
+        }
       }
     };
 
-    saveAndLoad();
-
-    return () => {
-      cancelled = true;
-    };
+    run();
+    return () => { cancelled = true; };
   }, [currentFilename, currentIndex]);
 
   return (
     <Layout>
       <ImageSidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
         <Toolbar />
-        <AnnotationCanvas />
+        <div className="flex-1 flex overflow-hidden relative">
+          <AnnotationCanvas />
+          <FieldLabelDropdown />
+        </div>
       </div>
-      <AnnotationPanel />
+      <InvoicePanel />
     </Layout>
   );
 }

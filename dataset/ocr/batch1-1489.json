@@ -1,0 +1,1069 @@
+[
+  {
+    "ocr_id": "ocr_0",
+    "text": "Invoice",
+    "bbox": [
+      131,
+      73,
+      271,
+      109
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_1",
+    "text": "no: 22862792",
+    "bbox": [
+      279,
+      69,
+      539,
+      109
+    ],
+    "confidence": 0.7142
+  },
+  {
+    "ocr_id": "ocr_2",
+    "text": "Date of issue:",
+    "bbox": [
+      131,
+      139,
+      349,
+      175
+    ],
+    "confidence": 0.916
+  },
+  {
+    "ocr_id": "ocr_3",
+    "text": "04/19/2013",
+    "bbox": [
+      799,
+      139,
+      983,
+      177
+    ],
+    "confidence": 0.993
+  },
+  {
+    "ocr_id": "ocr_4",
+    "text": "Seller:",
+    "bbox": [
+      131,
+      441,
+      259,
+      479
+    ],
+    "confidence": 0.994
+  },
+  {
+    "ocr_id": "ocr_5",
+    "text": "Client:",
+    "bbox": [
+      823,
+      441,
+      953,
+      479
+    ],
+    "confidence": 0.777
+  },
+  {
+    "ocr_id": "ocr_6",
+    "text": "Robbins Inc",
+    "bbox": [
+      140,
+      506,
+      306,
+      538
+    ],
+    "confidence": 0.9988
+  },
+  {
+    "ocr_id": "ocr_7",
+    "text": "Coleman, Casey and Austin",
+    "bbox": [
+      830,
+      503,
+      1221,
+      543
+    ],
+    "confidence": 0.8968
+  },
+  {
+    "ocr_id": "ocr_8",
+    "text": "8750 Hernandez Meadow",
+    "bbox": [
+      140,
+      542,
+      500,
+      574
+    ],
+    "confidence": 0.8894
+  },
+  {
+    "ocr_id": "ocr_9",
+    "text": "Unit 8022 Box 1027",
+    "bbox": [
+      834,
+      542,
+      1114,
+      574
+    ],
+    "confidence": 0.5843
+  },
+  {
+    "ocr_id": "ocr_10",
+    "text": "Reedstad, OK 36367",
+    "bbox": [
+      140,
+      577,
+      429,
+      610
+    ],
+    "confidence": 0.8936
+  },
+  {
+    "ocr_id": "ocr_11",
+    "text": "DPO AP 77029",
+    "bbox": [
+      834,
+      577,
+      1040,
+      610
+    ],
+    "confidence": 0.9357
+  },
+  {
+    "ocr_id": "ocr_12",
+    "text": "Tax Id: 981-74-8566",
+    "bbox": [
+      140,
+      648,
+      428,
+      680
+    ],
+    "confidence": 0.6684
+  },
+  {
+    "ocr_id": "ocr_13",
+    "text": "Tax Id: 956-77-3006",
+    "bbox": [
+      832,
+      648,
+      1120,
+      680
+    ],
+    "confidence": 0.8465
+  },
+  {
+    "ocr_id": "ocr_14",
+    "text": "IBAN: GB72GOHH30434227749615",
+    "bbox": [
+      138,
+      684,
+      638,
+      716
+    ],
+    "confidence": 0.5977
+  },
+  {
+    "ocr_id": "ocr_15",
+    "text": "ITEMS",
+    "bbox": [
+      131,
+      759,
+      251,
+      795
+    ],
+    "confidence": 0.9996
+  },
+  {
+    "ocr_id": "ocr_16",
+    "text": "No.",
+    "bbox": [
+      158,
+      846,
+      204,
+      870
+    ],
+    "confidence": 0.9918
+  },
+  {
+    "ocr_id": "ocr_17",
+    "text": "Description",
+    "bbox": [
+      238,
+      844,
+      386,
+      874
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_18",
+    "text": "Qty",
+    "bbox": [
+      678,
+      846,
+      728,
+      876
+    ],
+    "confidence": 0.9998
+  },
+  {
+    "ocr_id": "ocr_19",
+    "text": "UM",
+    "bbox": [
+      778,
+      846,
+      820,
+      870
+    ],
+    "confidence": 0.9791
+  },
+  {
+    "ocr_id": "ocr_20",
+    "text": "Net price",
+    "bbox": [
+      898,
+      842,
+      1019,
+      875
+    ],
+    "confidence": 0.9999
+  },
+  {
+    "ocr_id": "ocr_21",
+    "text": "Net worth",
+    "bbox": [
+      1058,
+      846,
+      1186,
+      870
+    ],
+    "confidence": 0.9996
+  },
+  {
+    "ocr_id": "ocr_22",
+    "text": "VAT [%]",
+    "bbox": [
+      1228,
+      844,
+      1334,
+      874
+    ],
+    "confidence": 0.9923
+  },
+  {
+    "ocr_id": "ocr_23",
+    "text": "Gross",
+    "bbox": [
+      1426,
+      846,
+      1502,
+      870
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_24",
+    "text": "worth",
+    "bbox": [
+      1424,
+      872,
+      1502,
+      898
+    ],
+    "confidence": 0.9999
+  },
+  {
+    "ocr_id": "ocr_25",
+    "text": "1.",
+    "bbox": [
+      168,
+      932,
+      194,
+      958
+    ],
+    "confidence": 0.9772
+  },
+  {
+    "ocr_id": "ocr_26",
+    "text": "6'x3' Black Marble Top Dining",
+    "bbox": [
+      238,
+      930,
+      572,
+      962
+    ],
+    "confidence": 0.7014
+  },
+  {
+    "ocr_id": "ocr_27",
+    "text": "3,00",
+    "bbox": [
+      672,
+      932,
+      726,
+      958
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_28",
+    "text": "each",
+    "bbox": [
+      770,
+      932,
+      828,
+      958
+    ],
+    "confidence": 0.997
+  },
+  {
+    "ocr_id": "ocr_29",
+    "text": "5 265,97",
+    "bbox": [
+      916,
+      932,
+      1018,
+      958
+    ],
+    "confidence": 0.8681
+  },
+  {
+    "ocr_id": "ocr_30",
+    "text": "15 797,91",
+    "bbox": [
+      1070,
+      932,
+      1186,
+      958
+    ],
+    "confidence": 0.6175
+  },
+  {
+    "ocr_id": "ocr_31",
+    "text": "10%",
+    "bbox": [
+      1280,
+      932,
+      1334,
+      958
+    ],
+    "confidence": 0.9993
+  },
+  {
+    "ocr_id": "ocr_32",
+    "text": "17 377,70",
+    "bbox": [
+      1384,
+      932,
+      1502,
+      958
+    ],
+    "confidence": 0.6995
+  },
+  {
+    "ocr_id": "ocr_33",
+    "text": "Table Scagliola Inlay Antique",
+    "bbox": [
+      235,
+      953,
+      566,
+      992
+    ],
+    "confidence": 0.9621
+  },
+  {
+    "ocr_id": "ocr_34",
+    "text": "Arts Kitchen Decor",
+    "bbox": [
+      238,
+      986,
+      452,
+      1012
+    ],
+    "confidence": 0.9945
+  },
+  {
+    "ocr_id": "ocr_35",
+    "text": "2",
+    "bbox": [
+      171,
+      1049,
+      187,
+      1071
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_36",
+    "text": "36 Inches Marble Dinning Table",
+    "bbox": [
+      238,
+      1046,
+      594,
+      1074
+    ],
+    "confidence": 0.919
+  },
+  {
+    "ocr_id": "ocr_37",
+    "text": "1,00",
+    "bbox": [
+      672,
+      1046,
+      726,
+      1072
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_38",
+    "text": "each",
+    "bbox": [
+      770,
+      1046,
+      828,
+      1072
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_39",
+    "text": "1 515,00",
+    "bbox": [
+      916,
+      1046,
+      1018,
+      1074
+    ],
+    "confidence": 0.912
+  },
+  {
+    "ocr_id": "ocr_40",
+    "text": "1 515,00",
+    "bbox": [
+      1086,
+      1046,
+      1188,
+      1072
+    ],
+    "confidence": 0.7854
+  },
+  {
+    "ocr_id": "ocr_41",
+    "text": "10%",
+    "bbox": [
+      1280,
+      1046,
+      1334,
+      1072
+    ],
+    "confidence": 0.9991
+  },
+  {
+    "ocr_id": "ocr_42",
+    "text": "1 666,50",
+    "bbox": [
+      1400,
+      1044,
+      1502,
+      1072
+    ],
+    "confidence": 0.6934
+  },
+  {
+    "ocr_id": "ocr_43",
+    "text": "Top Inlay Kitchen Table with",
+    "bbox": [
+      236,
+      1072,
+      558,
+      1103
+    ],
+    "confidence": 0.8574
+  },
+  {
+    "ocr_id": "ocr_44",
+    "text": "Blue Elephant Design",
+    "bbox": [
+      238,
+      1102,
+      482,
+      1132
+    ],
+    "confidence": 0.8247
+  },
+  {
+    "ocr_id": "ocr_45",
+    "text": "3",
+    "bbox": [
+      171,
+      1163,
+      187,
+      1185
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_46",
+    "text": "24\" Marble White Coffee",
+    "bbox": [
+      238,
+      1160,
+      516,
+      1186
+    ],
+    "confidence": 0.8659
+  },
+  {
+    "ocr_id": "ocr_47",
+    "text": "5,00",
+    "bbox": [
+      672,
+      1160,
+      728,
+      1188
+    ],
+    "confidence": 0.6848
+  },
+  {
+    "ocr_id": "ocr_48",
+    "text": "each",
+    "bbox": [
+      770,
+      1162,
+      828,
+      1186
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_49",
+    "text": "918,17",
+    "bbox": [
+      934,
+      1160,
+      1018,
+      1188
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_50",
+    "text": "590,85",
+    "bbox": [
+      1104,
+      1160,
+      1186,
+      1188
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_51",
+    "text": "10%",
+    "bbox": [
+      1278,
+      1160,
+      1334,
+      1186
+    ],
+    "confidence": 0.9995
+  },
+  {
+    "ocr_id": "ocr_52",
+    "text": "5 049,93",
+    "bbox": [
+      1400,
+      1160,
+      1502,
+      1188
+    ],
+    "confidence": 0.8459
+  },
+  {
+    "ocr_id": "ocr_53",
+    "text": "Table Inlay Lapis Stone",
+    "bbox": [
+      236,
+      1188,
+      500,
+      1218
+    ],
+    "confidence": 0.9994
+  },
+  {
+    "ocr_id": "ocr_54",
+    "text": "Furniture Indoor Decor W045",
+    "bbox": [
+      238,
+      1216,
+      566,
+      1242
+    ],
+    "confidence": 0.8693
+  },
+  {
+    "ocr_id": "ocr_55",
+    "text": "25\"x25\" Marble Black Top",
+    "bbox": [
+      238,
+      1275,
+      533,
+      1305
+    ],
+    "confidence": 0.9877
+  },
+  {
+    "ocr_id": "ocr_56",
+    "text": "2,00",
+    "bbox": [
+      672,
+      1276,
+      726,
+      1302
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_57",
+    "text": "each",
+    "bbox": [
+      770,
+      1276,
+      828,
+      1302
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_58",
+    "text": "2 789,00",
+    "bbox": [
+      916,
+      1276,
+      1018,
+      1302
+    ],
+    "confidence": 0.6681
+  },
+  {
+    "ocr_id": "ocr_59",
+    "text": "5 578,00",
+    "bbox": [
+      1084,
+      1276,
+      1188,
+      1302
+    ],
+    "confidence": 0.8021
+  },
+  {
+    "ocr_id": "ocr_60",
+    "text": "10%",
+    "bbox": [
+      1278,
+      1276,
+      1334,
+      1302
+    ],
+    "confidence": 0.9999
+  },
+  {
+    "ocr_id": "ocr_61",
+    "text": "6 135,80",
+    "bbox": [
+      1402,
+      1276,
+      1502,
+      1302
+    ],
+    "confidence": 0.986
+  },
+  {
+    "ocr_id": "ocr_62",
+    "text": "custom Table Carnelian",
+    "bbox": [
+      238,
+      1304,
+      506,
+      1330
+    ],
+    "confidence": 0.845
+  },
+  {
+    "ocr_id": "ocr_63",
+    "text": "Marquetry Art Halloween Gift",
+    "bbox": [
+      238,
+      1331,
+      568,
+      1360
+    ],
+    "confidence": 0.5639
+  },
+  {
+    "ocr_id": "ocr_64",
+    "text": "5",
+    "bbox": [
+      169,
+      1393,
+      187,
+      1415
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_65",
+    "text": "4Pcs Adjustable Stainless Steel",
+    "bbox": [
+      238,
+      1390,
+      590,
+      1422
+    ],
+    "confidence": 0.846
+  },
+  {
+    "ocr_id": "ocr_66",
+    "text": "1,00",
+    "bbox": [
+      672,
+      1390,
+      728,
+      1418
+    ],
+    "confidence": 0.7605
+  },
+  {
+    "ocr_id": "ocr_67",
+    "text": "each",
+    "bbox": [
+      770,
+      1390,
+      828,
+      1416
+    ],
+    "confidence": 0.9713
+  },
+  {
+    "ocr_id": "ocr_68",
+    "text": "11,95",
+    "bbox": [
+      950,
+      1390,
+      1020,
+      1418
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_69",
+    "text": "11,95",
+    "bbox": [
+      1118,
+      1390,
+      1188,
+      1418
+    ],
+    "confidence": 0.8943
+  },
+  {
+    "ocr_id": "ocr_70",
+    "text": "10%",
+    "bbox": [
+      1278,
+      1390,
+      1334,
+      1416
+    ],
+    "confidence": 0.9994
+  },
+  {
+    "ocr_id": "ocr_71",
+    "text": "13,15",
+    "bbox": [
+      1434,
+      1390,
+      1502,
+      1418
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_72",
+    "text": "Cabinet Legs Kitchen Feet",
+    "bbox": [
+      238,
+      1417,
+      534,
+      1448
+    ],
+    "confidence": 0.8185
+  },
+  {
+    "ocr_id": "ocr_73",
+    "text": "Round Stand Holders",
+    "bbox": [
+      238,
+      1446,
+      478,
+      1472
+    ],
+    "confidence": 0.9744
+  },
+  {
+    "ocr_id": "ocr_74",
+    "text": "35\" Round Marble Coffee Top",
+    "bbox": [
+      238,
+      1504,
+      573,
+      1535
+    ],
+    "confidence": 0.8746
+  },
+  {
+    "ocr_id": "ocr_75",
+    "text": "3,00",
+    "bbox": [
+      672,
+      1506,
+      726,
+      1534
+    ],
+    "confidence": 0.683
+  },
+  {
+    "ocr_id": "ocr_76",
+    "text": "each",
+    "bbox": [
+      770,
+      1506,
+      828,
+      1532
+    ],
+    "confidence": 1.0
+  },
+  {
+    "ocr_id": "ocr_77",
+    "text": "1 259,00",
+    "bbox": [
+      916,
+      1506,
+      1018,
+      1534
+    ],
+    "confidence": 0.9432
+  },
+  {
+    "ocr_id": "ocr_78",
+    "text": "3 777,00",
+    "bbox": [
+      1086,
+      1506,
+      1188,
+      1532
+    ],
+    "confidence": 0.9244
+  },
+  {
+    "ocr_id": "ocr_79",
+    "text": "10%",
+    "bbox": [
+      1280,
+      1506,
+      1334,
+      1532
+    ],
+    "confidence": 0.999
+  },
+  {
+    "ocr_id": "ocr_80",
+    "text": "4 154,70",
+    "bbox": [
+      1400,
+      1504,
+      1502,
+      1532
+    ],
+    "confidence": 0.8237
+  },
+  {
+    "ocr_id": "ocr_81",
+    "text": "Table Floral Marquetry Inlay",
+    "bbox": [
+      236,
+      1532,
+      554,
+      1562
+    ],
+    "confidence": 0.8026
+  },
+  {
+    "ocr_id": "ocr_82",
+    "text": "Furniture Decors B430",
+    "bbox": [
+      238,
+      1560,
+      494,
+      1586
+    ],
+    "confidence": 0.8353
+  },
+  {
+    "ocr_id": "ocr_83",
+    "text": "SUMMARY",
+    "bbox": [
+      130,
+      1651,
+      330,
+      1689
+    ],
+    "confidence": 0.9998
+  },
+  {
+    "ocr_id": "ocr_84",
+    "text": "VAT [%]",
+    "bbox": [
+      640,
+      1738,
+      746,
+      1766
+    ],
+    "confidence": 0.7805
+  },
+  {
+    "ocr_id": "ocr_85",
+    "text": "Net worth",
+    "bbox": [
+      928,
+      1740,
+      1056,
+      1764
+    ],
+    "confidence": 0.9997
+  },
+  {
+    "ocr_id": "ocr_86",
+    "text": "VAT",
+    "bbox": [
+      1188,
+      1740,
+      1242,
+      1764
+    ],
+    "confidence": 0.9988
+  },
+  {
+    "ocr_id": "ocr_87",
+    "text": "Gross worth",
+    "bbox": [
+      1350,
+      1738,
+      1506,
+      1764
+    ],
+    "confidence": 0.9835
+  },
+  {
+    "ocr_id": "ocr_88",
+    "text": "10%",
+    "bbox": [
+      666,
+      1798,
+      720,
+      1824
+    ],
+    "confidence": 0.9999
+  },
+  {
+    "ocr_id": "ocr_89",
+    "text": "31 270,71",
+    "bbox": [
+      940,
+      1798,
+      1056,
+      1824
+    ],
+    "confidence": 0.9656
+  },
+  {
+    "ocr_id": "ocr_90",
+    "text": "3 127,07",
+    "bbox": [
+      1140,
+      1798,
+      1242,
+      1826
+    ],
+    "confidence": 0.9932
+  },
+  {
+    "ocr_id": "ocr_91",
+    "text": "34 397,78",
+    "bbox": [
+      1388,
+      1796,
+      1506,
+      1824
+    ],
+    "confidence": 0.6352
+  },
+  {
+    "ocr_id": "ocr_92",
+    "text": "Total",
+    "bbox": [
+      500,
+      1856,
+      570,
+      1882
+    ],
+    "confidence": 0.9831
+  },
+  {
+    "ocr_id": "ocr_93",
+    "text": "$ 31 270,71",
+    "bbox": [
+      904,
+      1856,
+      1056,
+      1884
+    ],
+    "confidence": 0.6914
+  },
+  {
+    "ocr_id": "ocr_94",
+    "text": "$ 3 127,07",
+    "bbox": [
+      1108,
+      1856,
+      1242,
+      1884
+    ],
+    "confidence": 0.6729
+  },
+  {
+    "ocr_id": "ocr_95",
+    "text": "$ 34 397,78",
+    "bbox": [
+      1356,
+      1856,
+      1506,
+      1884
+    ],
+    "confidence": 0.9995
+  },
+  {
+    "ocr_id": "ocr_96",
+    "text": "Top",
+    "bbox": [
+      512,
+      1156,
+      566,
+      1191
+    ],
+    "confidence": 0.9992
+  }
+]

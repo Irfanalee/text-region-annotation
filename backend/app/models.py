@@ -1,5 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Float, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, Integer, String, DateTime
 from datetime import datetime
 
 from .database import Base
@@ -13,24 +12,7 @@ class ImageRecord(Base):
     width = Column(Integer)
     height = Column(Integer)
     is_sample = Column(Boolean, default=False, server_default="0")
+    ocr_status = Column(String, default="pending", server_default="pending")
+    is_annotated = Column(Boolean, default=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    annotations = relationship("Annotation", back_populates="image", cascade="all, delete-orphan")
-
-
-class Annotation(Base):
-    __tablename__ = "annotations"
-
-    id = Column(Integer, primary_key=True, index=True)
-    image_id = Column(Integer, ForeignKey("images.id"))
-    x = Column(Float)
-    y = Column(Float)
-    width = Column(Float)
-    height = Column(Float)
-    transcription = Column(String, default="")
-    class_id = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    image = relationship("ImageRecord", back_populates="annotations")

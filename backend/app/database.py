@@ -25,10 +25,15 @@ def get_db():
 def init_db():
     from . import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
-    # Migration: add is_sample column for existing databases
+    # Migrations for existing databases
     with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE images ADD COLUMN is_sample BOOLEAN DEFAULT 0"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists
+        for sql in [
+            "ALTER TABLE images ADD COLUMN is_sample BOOLEAN DEFAULT 0",
+            "ALTER TABLE images ADD COLUMN ocr_status TEXT DEFAULT 'pending'",
+            "ALTER TABLE images ADD COLUMN is_annotated BOOLEAN DEFAULT 0",
+        ]:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists

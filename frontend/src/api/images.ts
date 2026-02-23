@@ -7,6 +7,8 @@ interface ImageListResponse {
   height: number;
   annotation_count: number;
   is_sample: boolean;
+  ocr_status: string;
+  is_annotated: boolean;
 }
 
 export interface UploadResponse {
@@ -24,6 +26,8 @@ export async function fetchImages(): Promise<ImageData[]> {
     height: img.height,
     annotationCount: img.annotation_count,
     isSample: img.is_sample,
+    ocrStatus: (img.ocr_status ?? 'pending') as ImageData['ocrStatus'],
+    isAnnotated: img.is_annotated ?? false,
   }));
 }
 

@@ -1,23 +1,19 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useCanvasStore } from '../store/canvasStore';
-import { useAnnotationStore } from '../store/annotationStore';
+import { useInvoiceStore } from '../store/invoiceStore';
 import { useImageStore } from '../store/imageStore';
 import { getImageUrl } from '../api/client';
-import { BoundingBox, CanvasTransform, HandlePosition, Point } from '../types';
-
-const COLORS = {
-  box: '#3B82F6',
-  boxSelected: '#EF4444',
-  boxFill: 'rgba(59, 130, 246, 0.1)',
-  boxFillSelected: 'rgba(239, 68, 68, 0.2)',
-  handle: '#FFFFFF',
-  handleBorder: '#3B82F6',
-  label: '#1F2937',
-  labelBg: 'rgba(255, 255, 255, 0.9)',
-};
+import { CanvasTransform, HandlePosition, Point, LabeledBox, FIELD_COLORS } from '../types';
 
 const HANDLE_SIZE = 8;
 const MIN_BOX_SIZE = 10;
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 function screenToImage(
   screenX: number,
@@ -33,11 +29,7 @@ function screenToImage(
   };
 }
 
-function imageToCanvas(
-  imageX: number,
-  imageY: number,
-  transform: CanvasTransform
-): Point {
+function imageToCanvas(imageX: number, imageY: number, transform: CanvasTransform): Point {
   return {
     x: imageX * transform.scale + transform.offsetX,
     y: imageY * transform.scale + transform.offsetY,
@@ -47,23 +39,24 @@ function imageToCanvas(
 function getHandleAtPoint(
   canvasX: number,
   canvasY: number,
-  box: BoundingBox,
+  bbox: [number, number, number, number],
   transform: CanvasTransform
 ): HandlePosition {
-  const { x, y } = imageToCanvas(box.x, box.y, transform);
-  const width = box.width * transform.scale;
-  const height = box.height * transform.scale;
+  const x = bbox[0] * transform.scale + transform.offsetX;
+  const y = bbox[1] * transform.scale + transform.offsetY;
+  const w = (bbox[2] - bbox[0]) * transform.scale;
+  const h = (bbox[3] - bbox[1]) * transform.scale;
   const hs = HANDLE_SIZE;
 
   const handles: [HandlePosition, number, number][] = [
     ['top-left', x, y],
-    ['top-right', x + width, y],
-    ['bottom-right', x + width, y + height],
-    ['bottom-left', x, y + height],
-    ['top-center', x + width / 2, y],
-    ['right-center', x + width, y + height / 2],
-    ['bottom-center', x + width / 2, y + height],
-    ['left-center', x, y + height / 2],
+    ['top-right', x + w, y],
+    ['bottom-right', x + w, y + h],
+    ['bottom-left', x, y + h],
+    ['top-center', x + w / 2, y],
+    ['right-center', x + w, y + h / 2],
+    ['bottom-center', x + w / 2, y + h],
+    ['left-center', x, y + h / 2],
   ];
 
   for (const [position, hx, hy] of handles) {
@@ -72,83 +65,74 @@ function getHandleAtPoint(
     }
   }
 
-  if (
-    canvasX >= x &&
-    canvasX <= x + width &&
-    canvasY >= y &&
-    canvasY <= y + height
-  ) {
+  if (canvasX >= x && canvasX <= x + w && canvasY >= y && canvasY <= y + h) {
     return 'body';
   }
-
   return null;
 }
 
-function drawBoundingBox(
+function drawLabeledBox(
   ctx: CanvasRenderingContext2D,
-  box: BoundingBox,
+  box: LabeledBox,
   transform: CanvasTransform,
   isSelected: boolean,
   isDrawing: boolean = false
 ) {
-  const { x, y } = imageToCanvas(box.x, box.y, transform);
-  const width = box.width * transform.scale;
-  const height = box.height * transform.scale;
+  const x = box.bbox[0] * transform.scale + transform.offsetX;
+  const y = box.bbox[1] * transform.scale + transform.offsetY;
+  const w = (box.bbox[2] - box.bbox[0]) * transform.scale;
+  const h = (box.bbox[3] - box.bbox[1]) * transform.scale;
+  const color = FIELD_COLORS[box.fieldType];
 
-  // Fill
-  ctx.fillStyle = isSelected ? COLORS.boxFillSelected : COLORS.boxFill;
-  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = hexToRgba(color, isSelected ? 0.3 : 0.15);
+  ctx.fillRect(x, y, w, h);
 
-  // Stroke
-  ctx.strokeStyle = isSelected ? COLORS.boxSelected : COLORS.box;
-  ctx.lineWidth = isSelected ? 2 : 1;
-  ctx.setLineDash(isDrawing ? [5, 5] : []);
-  ctx.strokeRect(x, y, width, height);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = isSelected ? 3 : 2;
+  ctx.setLineDash(isDrawing ? [5, 5] : isSelected ? [6, 3] : []);
+  ctx.strokeRect(x, y, w, h);
   ctx.setLineDash([]);
 
-  // Draw resize handles for selected box
   if (isSelected && !isDrawing) {
-    const handles = [
-      { x: x, y: y },
-      { x: x + width / 2, y: y },
-      { x: x + width, y: y },
-      { x: x + width, y: y + height / 2 },
-      { x: x + width, y: y + height },
-      { x: x + width / 2, y: y + height },
-      { x: x, y: y + height },
-      { x: x, y: y + height / 2 },
+    const handlePoints = [
+      { x, y },
+      { x: x + w / 2, y },
+      { x: x + w, y },
+      { x: x + w, y: y + h / 2 },
+      { x: x + w, y: y + h },
+      { x: x + w / 2, y: y + h },
+      { x, y: y + h },
+      { x, y: y + h / 2 },
     ];
-
-    for (const handle of handles) {
-      ctx.fillStyle = COLORS.handle;
-      ctx.strokeStyle = COLORS.handleBorder;
-      ctx.lineWidth = 1;
-      ctx.fillRect(
-        handle.x - HANDLE_SIZE / 2,
-        handle.y - HANDLE_SIZE / 2,
-        HANDLE_SIZE,
-        HANDLE_SIZE
-      );
-      ctx.strokeRect(
-        handle.x - HANDLE_SIZE / 2,
-        handle.y - HANDLE_SIZE / 2,
-        HANDLE_SIZE,
-        HANDLE_SIZE
-      );
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    for (const hp of handlePoints) {
+      ctx.fillRect(hp.x - HANDLE_SIZE / 2, hp.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+      ctx.strokeRect(hp.x - HANDLE_SIZE / 2, hp.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
     }
   }
 
-  // Draw transcription label
-  if (box.transcription && !isDrawing) {
-    ctx.font = '12px Inter, system-ui, sans-serif';
-    const metrics = ctx.measureText(box.transcription);
-    const padding = 4;
+  if (!isDrawing && box.fieldType !== 'unassigned') {
+    const label = box.fieldType.replace(/_/g, ' ');
+    ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+    const textW = ctx.measureText(label).width;
+    const chipW = textW + 8;
+    const chipH = 14;
+    const chipX = x;
+    const chipY = Math.max(0, y - chipH - 2);
 
-    ctx.fillStyle = COLORS.labelBg;
-    ctx.fillRect(x, y - 18, metrics.width + padding * 2, 16);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(chipX, chipY, chipW, chipH, 3);
+    } else {
+      ctx.rect(chipX, chipY, chipW, chipH);
+    }
+    ctx.fill();
 
-    ctx.fillStyle = COLORS.label;
-    ctx.fillText(box.transcription, x + padding, y - 6);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, chipX + 4, chipY + 10);
   }
 }
 
@@ -174,14 +158,17 @@ export const AnnotationCanvas: React.FC = () => {
   const [dragState, setDragState] = useState<{
     handle: HandlePosition;
     startPoint: Point;
-    originalBox: BoundingBox;
+    originalBbox: [number, number, number, number];
+    tempId: string;
   } | null>(null);
   const lastMousePos = useRef<Point | null>(null);
 
   const { images, currentIndex } = useImageStore();
   const currentImage = images[currentIndex] || null;
-  const { annotations, selectedId, addAnnotation, selectAnnotation, updateAnnotation } =
-    useAnnotationStore();
+
+  const { labeledBoxes, selectedIds, selectBox, clearSelection, addManualBox, updateBoxBbox } =
+    useInvoiceStore();
+
   const {
     tool,
     transform,
@@ -196,62 +183,43 @@ export const AnnotationCanvas: React.FC = () => {
     setTransform,
   } = useCanvasStore();
 
-  // Load image when currentImage changes
   useEffect(() => {
-    if (!currentImage) {
-      setImage(null);
-      return;
-    }
-
+    if (!currentImage) { setImage(null); return; }
     const img = new Image();
     img.onload = () => setImage(img);
     img.onerror = () => setImage(null);
     img.src = getImageUrl(currentImage.filename);
-
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
+    return () => { img.onload = null; img.onerror = null; };
   }, [currentImage]);
 
-  // Reset transform when image changes
   useEffect(() => {
     setTransform({ scale: 1, offsetX: 0, offsetY: 0 });
   }, [currentImage, setTransform]);
 
-  // Resize canvas to container
   useEffect(() => {
     const resizeCanvas = () => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
-
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
       setContainerSize({ width: container.clientWidth, height: container.clientHeight });
     };
-
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
 
-  // Render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Background
     ctx.fillStyle = '#e5e7eb';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw image
     if (image) {
       ctx.save();
       ctx.translate(transform.offsetX, transform.offsetY);
@@ -260,49 +228,46 @@ export const AnnotationCanvas: React.FC = () => {
       ctx.restore();
     }
 
-    // Draw annotations
-    for (const ann of annotations) {
-      const isSelected = ann.id === selectedId;
-      drawBoundingBox(ctx, ann, transform, isSelected);
+    for (const box of labeledBoxes) {
+      drawLabeledBox(ctx, box, transform, selectedIds.has(box.tempId));
     }
 
-    // Draw current drawing box
     if (drawingBox) {
-      drawBoundingBox(
-        ctx,
-        { ...drawingBox, id: -1, transcription: '' },
-        transform,
-        false,
-        true
-      );
+      const preview: LabeledBox = {
+        tempId: '__preview__',
+        ocr_id: null,
+        text: '',
+        bbox: [
+          drawingBox.x,
+          drawingBox.y,
+          drawingBox.x + drawingBox.width,
+          drawingBox.y + drawingBox.height,
+        ],
+        fieldType: 'unassigned',
+      };
+      drawLabeledBox(ctx, preview, transform, false, true);
     }
-  }, [image, annotations, selectedId, transform, drawingBox]);
+  }, [image, labeledBoxes, selectedIds, transform, drawingBox]);
 
-  // Mouse wheel zoom
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-
       if (e.ctrlKey || e.metaKey) {
-        // Ctrl/Cmd + scroll = zoom
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
         const newScale = Math.max(0.1, Math.min(5, transform.scale + delta));
         const scaleRatio = newScale / transform.scale;
-
         setTransform({
           scale: newScale,
           offsetX: mouseX - (mouseX - transform.offsetX) * scaleRatio,
           offsetY: mouseY - (mouseY - transform.offsetY) * scaleRatio,
         });
       } else {
-        // Scroll = pan
         setTransform({
           scale: transform.scale,
           offsetX: transform.offsetX - e.deltaX,
@@ -315,14 +280,16 @@ export const AnnotationCanvas: React.FC = () => {
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [transform, setTransform]);
 
-  // Scrollbar drag
   useEffect(() => {
     if (!scrollDrag) return;
 
     const handleMove = (e: MouseEvent) => {
       const pos = scrollDrag.axis === 'x' ? e.clientX : e.clientY;
       const delta = pos - scrollDrag.startPos;
-      const thumbSize = Math.max(20, (scrollDrag.containerDim / scrollDrag.imageEffectiveSize) * scrollDrag.trackSize);
+      const thumbSize = Math.max(
+        20,
+        (scrollDrag.containerDim / scrollDrag.imageEffectiveSize) * scrollDrag.trackSize
+      );
       const maxThumbPos = scrollDrag.trackSize - thumbSize;
       if (maxThumbPos <= 0) return;
       const scrollRange = scrollDrag.imageEffectiveSize - scrollDrag.containerDim;
@@ -350,250 +317,160 @@ export const AnnotationCanvas: React.FC = () => {
     (e: React.MouseEvent) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-
       const rect = canvas.getBoundingClientRect();
       const canvasX = e.clientX - rect.left;
       const canvasY = e.clientY - rect.top;
       const imagePoint = screenToImage(e.clientX, e.clientY, transform, rect);
 
-      // Middle mouse button - pan
       if (e.button === 1) {
         e.preventDefault();
         startPanning();
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         return;
       }
-
-      // Left click only
       if (e.button !== 0) return;
 
       if (tool === 'draw') {
         startDrawing(imagePoint.x, imagePoint.y);
         setDrawingBox({ x: imagePoint.x, y: imagePoint.y, width: 0, height: 0 });
       } else if (tool === 'select') {
-        // Check if clicking on selected box handle
-        if (selectedId !== null) {
-          const selectedBox = annotations.find((a) => a.id === selectedId);
-          if (selectedBox) {
-            const handle = getHandleAtPoint(canvasX, canvasY, selectedBox, transform);
+        if (selectedIds.size === 1) {
+          const selId = [...selectedIds][0];
+          const selBox = labeledBoxes.find((b) => b.tempId === selId);
+          if (selBox) {
+            const handle = getHandleAtPoint(canvasX, canvasY, selBox.bbox, transform);
             if (handle) {
               setDragState({
                 handle,
                 startPoint: imagePoint,
-                originalBox: { ...selectedBox },
+                originalBbox: [...selBox.bbox] as [number, number, number, number],
+                tempId: selId,
               });
               return;
             }
           }
         }
 
-        // Check if clicking on any annotation
-        let clicked: BoundingBox | undefined;
-        // Iterate in reverse to select top-most box first
-        for (let i = annotations.length - 1; i >= 0; i--) {
-          const ann = annotations[i];
+        let clicked: LabeledBox | undefined;
+        for (let i = labeledBoxes.length - 1; i >= 0; i--) {
+          const b = labeledBoxes[i];
           if (
-            imagePoint.x >= ann.x &&
-            imagePoint.x <= ann.x + ann.width &&
-            imagePoint.y >= ann.y &&
-            imagePoint.y <= ann.y + ann.height
+            imagePoint.x >= b.bbox[0] && imagePoint.x <= b.bbox[2] &&
+            imagePoint.y >= b.bbox[1] && imagePoint.y <= b.bbox[3]
           ) {
-            clicked = ann;
+            clicked = b;
             break;
           }
         }
 
         if (clicked) {
-          selectAnnotation(clicked.id);
+          selectBox(clicked.tempId, e.shiftKey);
           setDragState({
             handle: 'body',
             startPoint: imagePoint,
-            originalBox: { ...clicked },
+            originalBbox: [...clicked.bbox] as [number, number, number, number],
+            tempId: clicked.tempId,
           });
         } else {
-          selectAnnotation(null);
+          clearSelection();
         }
       }
     },
-    [tool, transform, annotations, selectedId, startDrawing, startPanning, selectAnnotation]
+    [tool, transform, labeledBoxes, selectedIds, startDrawing, startPanning, selectBox, clearSelection]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-
       const rect = canvas.getBoundingClientRect();
       const imagePoint = screenToImage(e.clientX, e.clientY, transform, rect);
 
-      // Panning
       if (isPanning && lastMousePos.current) {
-        const deltaX = e.clientX - lastMousePos.current.x;
-        const deltaY = e.clientY - lastMousePos.current.y;
-        pan(deltaX, deltaY);
+        pan(e.clientX - lastMousePos.current.x, e.clientY - lastMousePos.current.y);
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         return;
       }
 
-      // Drawing
       if (isDrawing && drawStartPoint) {
-        const x = Math.min(drawStartPoint.x, imagePoint.x);
-        const y = Math.min(drawStartPoint.y, imagePoint.y);
-        const width = Math.abs(imagePoint.x - drawStartPoint.x);
-        const height = Math.abs(imagePoint.y - drawStartPoint.y);
-        setDrawingBox({ x, y, width, height });
+        setDrawingBox({
+          x: Math.min(drawStartPoint.x, imagePoint.x),
+          y: Math.min(drawStartPoint.y, imagePoint.y),
+          width: Math.abs(imagePoint.x - drawStartPoint.x),
+          height: Math.abs(imagePoint.y - drawStartPoint.y),
+        });
         return;
       }
 
-      // Dragging/resizing annotation
-      if (dragState && selectedId !== null) {
-        const { handle, startPoint, originalBox } = dragState;
-        const deltaX = imagePoint.x - startPoint.x;
-        const deltaY = imagePoint.y - startPoint.y;
-
-        let newBox = { ...originalBox };
+      if (dragState) {
+        const { handle, startPoint, originalBbox, tempId } = dragState;
+        const dx = imagePoint.x - startPoint.x;
+        const dy = imagePoint.y - startPoint.y;
+        let [x1, y1, x2, y2] = originalBbox;
 
         switch (handle) {
-          case 'body':
-            newBox.x = originalBox.x + deltaX;
-            newBox.y = originalBox.y + deltaY;
-            break;
-          case 'top-left':
-            newBox.x = originalBox.x + deltaX;
-            newBox.y = originalBox.y + deltaY;
-            newBox.width = originalBox.width - deltaX;
-            newBox.height = originalBox.height - deltaY;
-            break;
-          case 'top-center':
-            newBox.y = originalBox.y + deltaY;
-            newBox.height = originalBox.height - deltaY;
-            break;
-          case 'top-right':
-            newBox.y = originalBox.y + deltaY;
-            newBox.width = originalBox.width + deltaX;
-            newBox.height = originalBox.height - deltaY;
-            break;
-          case 'right-center':
-            newBox.width = originalBox.width + deltaX;
-            break;
-          case 'bottom-right':
-            newBox.width = originalBox.width + deltaX;
-            newBox.height = originalBox.height + deltaY;
-            break;
-          case 'bottom-center':
-            newBox.height = originalBox.height + deltaY;
-            break;
-          case 'bottom-left':
-            newBox.x = originalBox.x + deltaX;
-            newBox.width = originalBox.width - deltaX;
-            newBox.height = originalBox.height + deltaY;
-            break;
-          case 'left-center':
-            newBox.x = originalBox.x + deltaX;
-            newBox.width = originalBox.width - deltaX;
-            break;
+          case 'body':          x1 += dx; y1 += dy; x2 += dx; y2 += dy; break;
+          case 'top-left':      x1 += dx; y1 += dy; break;
+          case 'top-center':    y1 += dy; break;
+          case 'top-right':     x2 += dx; y1 += dy; break;
+          case 'right-center':  x2 += dx; break;
+          case 'bottom-right':  x2 += dx; y2 += dy; break;
+          case 'bottom-center': y2 += dy; break;
+          case 'bottom-left':   x1 += dx; y2 += dy; break;
+          case 'left-center':   x1 += dx; break;
         }
 
-        // Normalize if width/height is negative
-        if (newBox.width < 0) {
-          newBox.x = newBox.x + newBox.width;
-          newBox.width = Math.abs(newBox.width);
-        }
-        if (newBox.height < 0) {
-          newBox.y = newBox.y + newBox.height;
-          newBox.height = Math.abs(newBox.height);
-        }
-
-        // Minimum size
-        newBox.width = Math.max(MIN_BOX_SIZE, newBox.width);
-        newBox.height = Math.max(MIN_BOX_SIZE, newBox.height);
-
-        updateAnnotation(selectedId, {
-          x: newBox.x,
-          y: newBox.y,
-          width: newBox.width,
-          height: newBox.height,
-        });
+        const nx1 = Math.min(x1, x2), ny1 = Math.min(y1, y2);
+        let nx2 = Math.max(x1, x2), ny2 = Math.max(y1, y2);
+        if (nx2 - nx1 < MIN_BOX_SIZE) nx2 = nx1 + MIN_BOX_SIZE;
+        if (ny2 - ny1 < MIN_BOX_SIZE) ny2 = ny1 + MIN_BOX_SIZE;
+        updateBoxBbox(tempId, [nx1, ny1, nx2, ny2]);
       }
 
-      // Update cursor based on handle hover
-      if (tool === 'select' && selectedId !== null && !dragState) {
+      if (tool === 'select' && selectedIds.size === 1 && !dragState) {
         const canvasX = e.clientX - rect.left;
         const canvasY = e.clientY - rect.top;
-        const selectedBox = annotations.find((a) => a.id === selectedId);
-        if (selectedBox) {
-          const handle = getHandleAtPoint(canvasX, canvasY, selectedBox, transform);
-          switch (handle) {
-            case 'top-left':
-            case 'bottom-right':
-              canvas.style.cursor = 'nwse-resize';
-              break;
-            case 'top-right':
-            case 'bottom-left':
-              canvas.style.cursor = 'nesw-resize';
-              break;
-            case 'top-center':
-            case 'bottom-center':
-              canvas.style.cursor = 'ns-resize';
-              break;
-            case 'left-center':
-            case 'right-center':
-              canvas.style.cursor = 'ew-resize';
-              break;
-            case 'body':
-              canvas.style.cursor = 'move';
-              break;
-            default:
-              canvas.style.cursor = 'default';
-          }
+        const selId = [...selectedIds][0];
+        const selBox = labeledBoxes.find((b) => b.tempId === selId);
+        if (selBox) {
+          const handle = getHandleAtPoint(canvasX, canvasY, selBox.bbox, transform);
+          const cursors: Partial<Record<NonNullable<HandlePosition>, string>> = {
+            'top-left': 'nwse-resize', 'bottom-right': 'nwse-resize',
+            'top-right': 'nesw-resize', 'bottom-left': 'nesw-resize',
+            'top-center': 'ns-resize', 'bottom-center': 'ns-resize',
+            'left-center': 'ew-resize', 'right-center': 'ew-resize',
+            body: 'move',
+          };
+          canvas.style.cursor = handle ? (cursors[handle] ?? 'default') : 'default';
         }
       }
     },
-    [
-      isPanning,
-      isDrawing,
-      drawStartPoint,
-      dragState,
-      selectedId,
-      transform,
-      pan,
-      updateAnnotation,
-      tool,
-      annotations,
-    ]
+    [isPanning, isDrawing, drawStartPoint, dragState, transform, pan, tool, selectedIds, labeledBoxes, updateBoxBbox]
   );
 
   const handleMouseUp = useCallback(
-    (e: React.MouseEvent) => {
-      // Stop panning
+    (_e: React.MouseEvent) => {
       if (isPanning) {
         stopPanning();
         lastMousePos.current = null;
         return;
       }
-
-      // Finish drawing
       if (isDrawing && drawingBox) {
         if (drawingBox.width > MIN_BOX_SIZE && drawingBox.height > MIN_BOX_SIZE) {
-          addAnnotation({
-            x: drawingBox.x,
-            y: drawingBox.y,
-            width: drawingBox.width,
-            height: drawingBox.height,
-            transcription: '',
-          });
+          addManualBox([
+            Math.round(drawingBox.x),
+            Math.round(drawingBox.y),
+            Math.round(drawingBox.x + drawingBox.width),
+            Math.round(drawingBox.y + drawingBox.height),
+          ]);
         }
         stopDrawing();
         setDrawingBox(null);
         return;
       }
-
-      // Stop dragging
-      if (dragState) {
-        setDragState(null);
-      }
+      if (dragState) setDragState(null);
     },
-    [isPanning, isDrawing, drawingBox, dragState, addAnnotation, stopDrawing, stopPanning]
+    [isPanning, isDrawing, drawingBox, dragState, addManualBox, stopDrawing, stopPanning]
   );
 
   const getCursor = () => {
@@ -602,24 +479,28 @@ export const AnnotationCanvas: React.FC = () => {
     return 'default';
   };
 
-  // Scrollbar computations
   const imgW = (currentImage?.width ?? 0) * transform.scale;
   const imgH = (currentImage?.height ?? 0) * transform.scale;
   const cW = containerSize.width;
   const cH = containerSize.height;
-  const SCROLLBAR = 10; // px
+  const SCROLLBAR = 10;
   const showHBar = imgW > cW;
   const showVBar = imgH > cH;
   const hTrack = cW - (showVBar ? SCROLLBAR : 0);
   const vTrack = cH - (showHBar ? SCROLLBAR : 0);
   const hThumbW = showHBar ? Math.max(20, (cW / imgW) * hTrack) : 0;
   const vThumbH = showVBar ? Math.max(20, (cH / imgH) * vTrack) : 0;
-  const hThumbLeft = showHBar ? Math.min(hTrack - hThumbW, (-transform.offsetX / (imgW - cW)) * (hTrack - hThumbW)) : 0;
-  const vThumbTop = showVBar ? Math.min(vTrack - vThumbH, (-transform.offsetY / (imgH - cH)) * (vTrack - vThumbH)) : 0;
+  const hThumbLeft = showHBar
+    ? Math.min(hTrack - hThumbW, (-transform.offsetX / (imgW - cW)) * (hTrack - hThumbW))
+    : 0;
+  const vThumbTop = showVBar
+    ? Math.min(vTrack - vThumbH, (-transform.offsetY / (imgH - cH)) * (vTrack - vThumbH))
+    : 0;
 
   return (
     <div
       ref={containerRef}
+      id="canvas-container"
       className="flex-1 relative overflow-hidden bg-gray-200"
     >
       <canvas
@@ -635,11 +516,10 @@ export const AnnotationCanvas: React.FC = () => {
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
           <div className="text-center">
             <p className="text-lg">No image selected</p>
-            <p className="text-sm">Add images to dataset/images/ folder</p>
+            <p className="text-sm">Upload images to get started</p>
           </div>
         </div>
       )}
-      {/* Horizontal scrollbar */}
       {showHBar && (
         <div
           className="absolute bottom-0 left-0 bg-black/10"
@@ -650,12 +530,14 @@ export const AnnotationCanvas: React.FC = () => {
             style={{ left: hThumbLeft, width: hThumbW }}
             onMouseDown={(e) => {
               e.stopPropagation();
-              setScrollDrag({ axis: 'x', startPos: e.clientX, startOffset: transform.offsetX, imageEffectiveSize: imgW, containerDim: cW, trackSize: hTrack });
+              setScrollDrag({
+                axis: 'x', startPos: e.clientX, startOffset: transform.offsetX,
+                imageEffectiveSize: imgW, containerDim: cW, trackSize: hTrack,
+              });
             }}
           />
         </div>
       )}
-      {/* Vertical scrollbar */}
       {showVBar && (
         <div
           className="absolute top-0 right-0 bg-black/10"
@@ -666,7 +548,10 @@ export const AnnotationCanvas: React.FC = () => {
             style={{ top: vThumbTop, height: vThumbH }}
             onMouseDown={(e) => {
               e.stopPropagation();
-              setScrollDrag({ axis: 'y', startPos: e.clientY, startOffset: transform.offsetY, imageEffectiveSize: imgH, containerDim: cH, trackSize: vTrack });
+              setScrollDrag({
+                axis: 'y', startPos: e.clientY, startOffset: transform.offsetY,
+                imageEffectiveSize: imgH, containerDim: cH, trackSize: vTrack,
+              });
             }}
           />
         </div>

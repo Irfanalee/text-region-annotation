@@ -1,123 +1,47 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useCanvasStore } from '../store/canvasStore';
 import { useImageStore } from '../store/imageStore';
-import { useAnnotationStore } from '../store/annotationStore';
-import { exportAnnotations, ExportFormat } from '../api/export';
-import { saveAnnotations } from '../api/annotations';
-import { fetchImages } from '../api/images';
-import { autoAnnotate } from '../api/claude';
+import { useInvoiceStore } from '../store/invoiceStore';
+import { saveInvoiceAnnotation } from '../api/invoice';
 
 export const Toolbar: React.FC = () => {
   const { tool, setTool, transform, zoomIn, zoomOut, resetZoom } = useCanvasStore();
-  const { images, currentIndex, nextImage, prevImage, setImages } = useImageStore();
-  const { annotations, isDirty, setSaving, markClean } = useAnnotationStore();
-  const updateAnnotationCount = useImageStore((s) => s.updateAnnotationCount);
-  const [exporting, setExporting] = useState<ExportFormat | null>(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setExportOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-  const [annotating, setAnnotating] = useState(false);
-  const [annotateMessage, setAnnotateMessage] = useState<string | null>(null);
-  const [annotateError, setAnnotateError] = useState<string | null>(null);
+  const { images, currentIndex, nextImage, prevImage, setIsAnnotated } = useImageStore();
+  const { isDirty, setSaving, markClean, buildSavePayload } = useInvoiceStore();
 
   const currentImage = images[currentIndex];
   const zoomPercent = Math.round(transform.scale * 100);
 
   const handleSave = async () => {
     if (!currentImage || !isDirty) return;
-
     setSaving(true);
     try {
-      const result = await saveAnnotations(currentImage.filename, annotations);
+      await saveInvoiceAnnotation(currentImage.filename, buildSavePayload());
       markClean();
-      updateAnnotationCount(currentImage.filename, result.annotations.length);
+      setIsAnnotated(currentImage.filename, true);
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Failed to save annotations');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleExport = async (format: ExportFormat) => {
-    if (currentImage && isDirty) {
-      await handleSave();
-    }
-
-    setExporting(format);
-    setExportMessage(null);
-    try {
-      const result = await exportAnnotations(format);
-      setExportMessage(
-        `Exported ${result.annotation_count} annotations from ${result.file_count} images to ${format.toUpperCase()}`
-      );
-      setTimeout(() => setExportMessage(null), 3000);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert(`Export failed: ${error}`);
-    } finally {
-      setExporting(null);
-    }
-  };
-
-  const handleAutoAnnotate = async () => {
-    // Auto-save first if dirty
-    if (currentImage && isDirty) {
-      await handleSave();
-    }
-
-    setAnnotating(true);
-    setAnnotateMessage(null);
-    setAnnotateError(null);
-
-    try {
-      const result = await autoAnnotate(false);
-      if (result.total_annotated === 0 && result.total_errors === 0) {
-        setAnnotateMessage('No images to annotate (all non-sample images already annotated).');
-      } else {
-        const parts: string[] = [];
-        if (result.total_annotated > 0)
-          parts.push(`${result.total_annotated} image${result.total_annotated !== 1 ? 's' : ''} annotated`);
-        if (result.total_errors > 0)
-          parts.push(`${result.total_errors} error${result.total_errors !== 1 ? 's' : ''}`);
-        setAnnotateMessage(parts.join(', ') + '.');
-      }
-      // Refresh image list so annotation counts update
-      const refreshed = await fetchImages();
-      setImages(refreshed);
-      setTimeout(() => setAnnotateMessage(null), 5000);
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      setAnnotateError(msg);
-      setTimeout(() => setAnnotateError(null), 6000);
-    } finally {
-      setAnnotating(false);
-    }
-  };
-
-  const sampleCount = images.filter((img) => img.isSample).length;
-  const canAnnotate = sampleCount > 0 && !annotating;
+  const ocrStatus = currentImage?.ocrStatus ?? 'pending';
+  const ocrChip = {
+    pending: { label: 'OCR: Pending', className: 'bg-gray-100 text-gray-500' },
+    running: { label: 'OCR: Running…', className: 'bg-yellow-100 text-yellow-700 animate-pulse' },
+    done:    { label: `OCR: Done`, className: 'bg-green-100 text-green-700' },
+    error:   { label: 'OCR: Error', className: 'bg-red-100 text-red-600' },
+  }[ocrStatus];
 
   return (
     <div className="h-12 bg-gray-100 border-b border-gray-300 flex items-center px-4 gap-4">
       {/* Tool Selector */}
-      <div className="flex items-center gap-1 bg-white rounded border border-gray-300">
+      <div className="flex items-center gap-0 bg-white rounded border border-gray-300">
         <button
           onClick={() => setTool('select')}
           className={`px-3 py-1.5 text-sm rounded-l ${
-            tool === 'select'
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
+            tool === 'select' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'
           }`}
           title="Select tool (S)"
         >
@@ -126,9 +50,7 @@ export const Toolbar: React.FC = () => {
         <button
           onClick={() => setTool('draw')}
           className={`px-3 py-1.5 text-sm rounded-r ${
-            tool === 'draw'
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
+            tool === 'draw' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'
           }`}
           title="Draw box tool (D)"
         >
@@ -187,91 +109,25 @@ export const Toolbar: React.FC = () => {
       {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={!isDirty}
+        disabled={!isDirty || !currentImage}
         className={`px-3 py-1.5 text-sm rounded ${
-          isDirty
+          isDirty && currentImage
             ? 'bg-green-500 text-white hover:bg-green-600'
             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
         }`}
         title="Save annotations (Ctrl+S)"
       >
-        {isDirty ? 'Save*' : 'Saved'}
+        {isDirty ? 'Save *' : 'Saved'}
       </button>
 
-      {/* Auto-Annotate with Claude */}
-      <div className="relative group">
-        <button
-          onClick={handleAutoAnnotate}
-          disabled={!canAnnotate}
-          className={`px-3 py-1.5 text-sm rounded flex items-center gap-1.5 ${
-            canAnnotate
-              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          {annotating ? (
-            <>
-              <span className="animate-spin inline-block">&#8635;</span>
-              Annotating…
-            </>
-          ) : (
-            <>
-              <span>✦</span>
-              Auto-Annotate
-              {sampleCount > 0 && (
-                <span className="text-xs opacity-80">({sampleCount} sample{sampleCount !== 1 ? 's' : ''})</span>
-              )}
-            </>
-          )}
-        </button>
-        <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1.5 z-50 w-56 leading-snug pointer-events-none">
-          {sampleCount === 0
-            ? '⚠ Mark at least one image as a sample (★) and annotate it first.'
-            : `Uses ${sampleCount} sample image${sampleCount !== 1 ? 's' : ''} as few-shot examples to automatically annotate the remaining images with Claude AI.`}
-        </div>
-      </div>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Feedback messages */}
-      {annotateMessage && (
-        <span className="text-sm text-indigo-600 font-medium">{annotateMessage}</span>
-      )}
-      {annotateError && (
-        <span className="text-sm text-red-600 font-medium" title={annotateError}>
-          {annotateError.length > 60 ? annotateError.slice(0, 60) + '…' : annotateError}
+      {/* OCR Status chip */}
+      {currentImage && (
+        <span className={`text-xs px-2 py-1 rounded font-medium ${ocrChip.className}`}>
+          {ocrChip.label}
         </span>
       )}
-      {exportMessage && (
-        <span className="text-sm text-green-600">{exportMessage}</span>
-      )}
 
-      {/* Export Dropdown */}
-      <div className="relative" ref={exportRef}>
-        <button
-          onClick={() => setExportOpen((o) => !o)}
-          disabled={exporting !== null}
-          className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-1.5"
-        >
-          {exporting ? `Exporting ${exporting.toUpperCase()}…` : 'Export'}
-          <span className="text-xs">▾</span>
-        </button>
-        {exportOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-[120px]">
-            {(['yolo', 'coco', 'trocr'] as ExportFormat[]).map((fmt) => (
-              <button
-                key={fmt}
-                onClick={() => { handleExport(fmt); setExportOpen(false); }}
-                disabled={exporting !== null}
-                className="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 disabled:opacity-50"
-              >
-                {fmt.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="flex-1" />
     </div>
   );
 };

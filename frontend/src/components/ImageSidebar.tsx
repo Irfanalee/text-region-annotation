@@ -1,18 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { useImageStore } from '../store/imageStore';
 import { getImageUrl } from '../api/client';
-import { uploadImages, fetchImages, markAsSample, deleteImage } from '../api/images';
+import { uploadImages, fetchImages, deleteImage } from '../api/images';
 
 export const ImageSidebar: React.FC = () => {
-  const { images, currentIndex, setCurrentIndex, setImages, toggleSample, removeImage, isLoading } =
+  const { images, currentIndex, setCurrentIndex, setImages, removeImage, isLoading } =
     useImageStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleUploadClick = () => fileInputRef.current?.click();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -20,23 +18,19 @@ export const ImageSidebar: React.FC = () => {
 
     setUploading(true);
     setUploadMessage(null);
-
     try {
       const result = await uploadImages(files);
-
       if (result.total_uploaded > 0) {
         const newImages = await fetchImages();
         setImages(newImages);
         setUploadMessage(`Uploaded ${result.total_uploaded} image(s)`);
       }
-
       if (result.total_failed > 0) {
         const failedNames = result.failed.map((f) => f.filename).join(', ');
         setUploadMessage((prev) =>
           prev ? `${prev}. Failed: ${failedNames}` : `Failed: ${failedNames}`
         );
       }
-
       setTimeout(() => setUploadMessage(null), 3000);
     } catch (error) {
       console.error('Upload failed:', error);
@@ -44,9 +38,7 @@ export const ImageSidebar: React.FC = () => {
       setTimeout(() => setUploadMessage(null), 3000);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -70,16 +62,7 @@ export const ImageSidebar: React.FC = () => {
     }
   };
 
-  const handleToggleSample = async (e: React.MouseEvent, filename: string, current: boolean) => {
-    e.stopPropagation();
-    const next = !current;
-    try {
-      await markAsSample(filename, next);
-      toggleSample(filename, next);
-    } catch (err) {
-      console.error('Failed to update sample status:', err);
-    }
-  };
+  const annotatedCount = images.filter((img) => img.isAnnotated).length;
 
   const UploadButton = () => (
     <div className="p-2 border-b border-gray-300">
@@ -132,87 +115,98 @@ export const ImageSidebar: React.FC = () => {
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-gray-500 text-center text-sm">
             <p>No images found</p>
-            <p className="mt-2 text-xs">
-              Upload images or add to
-              <br />
-              dataset/images/
-            </p>
+            <p className="mt-2 text-xs">Upload invoice images to get started</p>
           </div>
         </div>
       </div>
     );
   }
 
-  const sampleCount = images.filter((img) => img.isSample).length;
-
   return (
     <div className="w-48 bg-gray-100 border-r border-gray-300 flex flex-col">
       <UploadButton />
       <div className="p-2 border-b border-gray-300 bg-gray-200">
         <h2 className="text-sm font-semibold text-gray-700">Images ({images.length})</h2>
-        {sampleCount > 0 && (
-          <p className="text-xs text-green-700 mt-0.5">
-            ★ {sampleCount} sample{sampleCount !== 1 ? 's' : ''} selected
-          </p>
-        )}
+        <p className="text-xs text-green-700 mt-0.5">
+          {annotatedCount} / {images.length} annotated
+        </p>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
-        {images.map((img, index) => (
-          <div
-            key={img.filename}
-            className={`p-2 cursor-pointer border-b border-gray-200 hover:bg-gray-200 ${
-              index === currentIndex
-                ? img.isSample
-                  ? 'bg-green-100 border-l-4 border-l-green-500'
-                  : 'bg-blue-100 border-l-4 border-l-blue-500'
-                : img.isSample
-                ? 'bg-green-50 border-l-4 border-l-green-400'
-                : ''
-            }`}
-            onClick={() => setCurrentIndex(index)}
-          >
-            <div className="relative">
-              <img
-                src={getImageUrl(img.filename)}
-                alt={img.filename}
-                className="w-full h-24 object-cover rounded bg-gray-300"
-                loading="lazy"
-              />
-              {/* Remove button */}
-              <button
-                onClick={(e) => handleRemoveImage(e, img.filename)}
-                title="Remove image"
-                className="absolute top-1 left-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center hover:bg-red-600 text-xs leading-none"
-              >
-                ×
-              </button>
-              {img.annotationCount > 0 && (
-                <span className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {img.annotationCount}
+        {images.map((img, index) => {
+          const isSelected = index === currentIndex;
+          const ocrDot =
+            img.ocrStatus === 'done'
+              ? '●'
+              : img.ocrStatus === 'running'
+              ? '◌'
+              : img.ocrStatus === 'error'
+              ? '✗'
+              : '○';
+          const ocrColor =
+            img.ocrStatus === 'done'
+              ? 'text-blue-500'
+              : img.ocrStatus === 'running'
+              ? 'text-yellow-500 animate-pulse'
+              : img.ocrStatus === 'error'
+              ? 'text-red-500'
+              : 'text-gray-400';
+
+          return (
+            <div
+              key={img.filename}
+              className={`p-2 cursor-pointer border-b border-gray-200 hover:bg-gray-200 ${
+                isSelected
+                  ? img.isAnnotated
+                    ? 'bg-green-100 border-l-4 border-l-green-500'
+                    : 'bg-blue-100 border-l-4 border-l-blue-500'
+                  : img.isAnnotated
+                  ? 'bg-green-50 border-l-2 border-l-green-400'
+                  : ''
+              }`}
+              onClick={() => setCurrentIndex(index)}
+            >
+              <div className="relative">
+                <img
+                  src={getImageUrl(img.filename)}
+                  alt={img.filename}
+                  className="w-full h-24 object-cover rounded bg-gray-300"
+                  loading="lazy"
+                />
+                {/* Remove button */}
+                <button
+                  onClick={(e) => handleRemoveImage(e, img.filename)}
+                  title="Remove image"
+                  className="absolute top-1 left-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center hover:bg-red-600 text-xs leading-none"
+                >
+                  ×
+                </button>
+                {/* Annotation count */}
+                {img.annotationCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {img.annotationCount}
+                  </span>
+                )}
+                {/* Annotated checkmark */}
+                {img.isAnnotated && (
+                  <span className="absolute bottom-1 right-1 text-green-600 font-bold text-sm leading-none">
+                    ✓
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-1">
+                <span className={`text-xs font-bold ${ocrColor}`} title={`OCR: ${img.ocrStatus}`}>
+                  {ocrDot}
                 </span>
-              )}
-              {/* Sample toggle button */}
-              <button
-                onClick={(e) => handleToggleSample(e, img.filename, img.isSample ?? false)}
-                title={img.isSample ? 'Unmark as sample' : 'Mark as sample'}
-                className={`absolute bottom-1 left-1 text-xs px-1.5 py-0.5 rounded font-bold transition-colors ${
-                  img.isSample
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-white/80 text-gray-500 hover:bg-green-100 hover:text-green-700'
-                }`}
-              >
-                {img.isSample ? '★' : '☆'}
-              </button>
+                <p className="text-xs text-gray-600 truncate flex-1" title={img.filename}>
+                  {img.filename}
+                </p>
+              </div>
+              <p className="text-xs text-gray-400">
+                {img.width} × {img.height}
+              </p>
             </div>
-            <p className="mt-1 text-xs text-gray-600 truncate" title={img.filename}>
-              {img.isSample && <span className="text-green-600 font-semibold">Sample · </span>}
-              {img.filename}
-            </p>
-            <p className="text-xs text-gray-400">
-              {img.width} x {img.height}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="p-2 border-t border-gray-300">
         <button

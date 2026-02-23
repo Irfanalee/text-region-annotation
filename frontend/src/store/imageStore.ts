@@ -17,6 +17,8 @@ interface ImageStore {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   getCurrentImage: () => ImageData | null;
+  setOcrStatus: (filename: string, status: ImageData['ocrStatus']) => void;
+  setIsAnnotated: (filename: string, value: boolean) => void;
 }
 
 export const useImageStore = create<ImageStore>((set, get) => ({
@@ -79,6 +81,22 @@ export const useImageStore = create<ImageStore>((set, get) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
+
+  setOcrStatus: (filename, status) => {
+    set((state) => ({
+      images: state.images.map((img) =>
+        img.filename === filename ? { ...img, ocrStatus: status } : img
+      ),
+    }));
+  },
+
+  setIsAnnotated: (filename, value) => {
+    set((state) => ({
+      images: state.images.map((img) =>
+        img.filename === filename ? { ...img, isAnnotated: value } : img
+      ),
+    }));
+  },
 
   getCurrentImage: () => {
     const { images, currentIndex } = get();

@@ -1,37 +1,5 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
-
-
-class AnnotationBase(BaseModel):
-    x: float
-    y: float
-    width: float
-    height: float
-    transcription: str = ""
-    class_id: int = 0
-
-
-class AnnotationCreate(AnnotationBase):
-    pass
-
-
-class AnnotationUpdate(BaseModel):
-    x: Optional[float] = None
-    y: Optional[float] = None
-    width: Optional[float] = None
-    height: Optional[float] = None
-    transcription: Optional[str] = None
-    class_id: Optional[int] = None
-
-
-class AnnotationResponse(AnnotationBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ImageListItem(BaseModel):
@@ -40,24 +8,8 @@ class ImageListItem(BaseModel):
     height: int
     annotation_count: int
     is_sample: bool = False
-
-
-class ImageAnnotations(BaseModel):
-    filename: str
-    width: int
-    height: int
-    annotations: list[AnnotationResponse]
-
-
-class ExportRequest(BaseModel):
-    include_empty: bool = False
-
-
-class ExportResponse(BaseModel):
-    path: str
-    format: str
-    file_count: int = 0
-    annotation_count: int = 0
+    ocr_status: str = "pending"
+    is_annotated: bool = False
 
 
 class UploadedImage(BaseModel):
@@ -82,19 +34,37 @@ class SetSampleRequest(BaseModel):
     is_sample: bool
 
 
-class ClaudeAnnotateRequest(BaseModel):
-    overwrite_existing: bool = False
+class OcrBox(BaseModel):
+    ocr_id: str
+    text: str
+    bbox: list[int]
+    confidence: float
 
 
-class ClaudeAnnotateResult(BaseModel):
+class OcrResult(BaseModel):
     filename: str
-    status: str  # "success", "skipped", "error"
-    annotations_added: int = 0
-    message: str = ""
+    ocr_boxes: list[OcrBox]
 
 
-class ClaudeAnnotateResponse(BaseModel):
-    results: list[ClaudeAnnotateResult]
-    total_annotated: int
-    total_skipped: int
-    total_errors: int
+class InvoiceField(BaseModel):
+    text: str
+    bbox: list[int]
+    ocr_id: Optional[str] = None
+
+
+class LineItem(BaseModel):
+    line_item_id: int
+    fields: dict[str, InvoiceField]
+
+
+class InvoiceAnnotation(BaseModel):
+    document_id: str
+    image_path: str
+    ocr_raw: list[OcrBox]
+    line_items: list[LineItem]
+    header_fields: dict[str, InvoiceField]
+
+
+class SaveInvoiceRequest(BaseModel):
+    line_items: list[LineItem]
+    header_fields: dict[str, InvoiceField]
