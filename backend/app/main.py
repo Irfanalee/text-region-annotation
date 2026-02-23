@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
-from .routers import images, ocr, invoice
+from .routers import images, ocr, invoice, claude, export_dataset
 
 app = FastAPI(
     title="Invoice Annotation Tool API",
@@ -21,6 +21,8 @@ app.add_middleware(
 app.include_router(images.router)
 app.include_router(ocr.router)
 app.include_router(invoice.router)
+app.include_router(claude.router)
+app.include_router(export_dataset.router)
 
 
 @app.on_event("startup")
