@@ -15,6 +15,8 @@ function App() {
   const { setAnnotations, annotations, isDirty, setSaving, markClean } = useAnnotationStore();
   const prevIndexRef = useRef<number | null>(null);
   const currentImage = images[currentIndex];
+  // Use filename string as dependency to avoid re-running when only metadata (e.g. annotationCount) changes
+  const currentFilename = currentImage?.filename;
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
@@ -39,40 +41,52 @@ function App() {
 
   // Load annotations when image changes
   useEffect(() => {
-    if (!currentImage) return;
+    if (!currentFilename) {
+      setAnnotations([]);
+      return;
+    }
 
-    // Save previous image's annotations if dirty
+    let cancelled = false;
+
+    // Capture prev index synchronously before any async work
+    const prevIdx = prevIndexRef.current;
+    prevIndexRef.current = currentIndex;
+
     const saveAndLoad = async () => {
-      // Save previous if needed
-      if (prevIndexRef.current !== null && prevIndexRef.current !== currentIndex && isDirty) {
-        const prevImage = images[prevIndexRef.current];
+      // Save previous image's annotations if dirty
+      if (prevIdx !== null && prevIdx !== currentIndex && isDirty) {
+        const prevImage = images[prevIdx];
         if (prevImage) {
           setSaving(true);
           try {
             const result = await saveAnnotations(prevImage.filename, annotations);
-            updateAnnotationCount(prevImage.filename, result.annotations.length);
+            if (!cancelled) updateAnnotationCount(prevImage.filename, result.annotations.length);
           } catch (error) {
             console.error('Failed to save previous annotations:', error);
           } finally {
-            setSaving(false);
+            if (!cancelled) setSaving(false);
           }
         }
       }
 
+      if (cancelled) return;
+
       // Load new annotations
       try {
-        const data = await fetchAnnotations(currentImage.filename);
-        setAnnotations(data.annotations);
+        const data = await fetchAnnotations(currentFilename);
+        if (!cancelled) setAnnotations(data.annotations);
       } catch (error) {
         console.error('Failed to load annotations:', error);
-        setAnnotations([]);
+        if (!cancelled) setAnnotations([]);
       }
-
-      prevIndexRef.current = currentIndex;
     };
 
     saveAndLoad();
-  }, [currentImage, currentIndex]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFilename, currentIndex]);
 
   return (
     <Layout>

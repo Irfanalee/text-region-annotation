@@ -156,6 +156,15 @@ export const AnnotationCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [scrollDrag, setScrollDrag] = useState<{
+    axis: 'x' | 'y';
+    startPos: number;
+    startOffset: number;
+    imageEffectiveSize: number;
+    containerDim: number;
+    trackSize: number;
+  } | null>(null);
   const [drawingBox, setDrawingBox] = useState<{
     x: number;
     y: number;
@@ -219,6 +228,7 @@ export const AnnotationCanvas: React.FC = () => {
 
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
+      setContainerSize({ width: container.clientWidth, height: container.clientHeight });
     };
 
     resizeCanvas();
@@ -276,27 +286,65 @@ export const AnnotationCanvas: React.FC = () => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
 
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl/Cmd + scroll = zoom
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      const newScale = Math.max(0.1, Math.min(5, transform.scale + delta));
-      const scaleRatio = newScale / transform.scale;
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.max(0.1, Math.min(5, transform.scale + delta));
+        const scaleRatio = newScale / transform.scale;
 
-      const newOffsetX = mouseX - (mouseX - transform.offsetX) * scaleRatio;
-      const newOffsetY = mouseY - (mouseY - transform.offsetY) * scaleRatio;
-
-      setTransform({
-        scale: newScale,
-        offsetX: newOffsetX,
-        offsetY: newOffsetY,
-      });
+        setTransform({
+          scale: newScale,
+          offsetX: mouseX - (mouseX - transform.offsetX) * scaleRatio,
+          offsetY: mouseY - (mouseY - transform.offsetY) * scaleRatio,
+        });
+      } else {
+        // Scroll = pan
+        setTransform({
+          scale: transform.scale,
+          offsetX: transform.offsetX - e.deltaX,
+          offsetY: transform.offsetY - e.deltaY,
+        });
+      }
     };
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [transform, setTransform]);
+
+  // Scrollbar drag
+  useEffect(() => {
+    if (!scrollDrag) return;
+
+    const handleMove = (e: MouseEvent) => {
+      const pos = scrollDrag.axis === 'x' ? e.clientX : e.clientY;
+      const delta = pos - scrollDrag.startPos;
+      const thumbSize = Math.max(20, (scrollDrag.containerDim / scrollDrag.imageEffectiveSize) * scrollDrag.trackSize);
+      const maxThumbPos = scrollDrag.trackSize - thumbSize;
+      if (maxThumbPos <= 0) return;
+      const scrollRange = scrollDrag.imageEffectiveSize - scrollDrag.containerDim;
+      const newOffset = Math.max(
+        scrollDrag.containerDim - scrollDrag.imageEffectiveSize,
+        Math.min(0, scrollDrag.startOffset - (delta / maxThumbPos) * scrollRange)
+      );
+      if (scrollDrag.axis === 'x') {
+        setTransform({ ...transform, offsetX: newOffset });
+      } else {
+        setTransform({ ...transform, offsetY: newOffset });
+      }
+    };
+
+    const handleUp = () => setScrollDrag(null);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+    };
+  }, [scrollDrag, transform, setTransform]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -554,6 +602,21 @@ export const AnnotationCanvas: React.FC = () => {
     return 'default';
   };
 
+  // Scrollbar computations
+  const imgW = (currentImage?.width ?? 0) * transform.scale;
+  const imgH = (currentImage?.height ?? 0) * transform.scale;
+  const cW = containerSize.width;
+  const cH = containerSize.height;
+  const SCROLLBAR = 10; // px
+  const showHBar = imgW > cW;
+  const showVBar = imgH > cH;
+  const hTrack = cW - (showVBar ? SCROLLBAR : 0);
+  const vTrack = cH - (showHBar ? SCROLLBAR : 0);
+  const hThumbW = showHBar ? Math.max(20, (cW / imgW) * hTrack) : 0;
+  const vThumbH = showVBar ? Math.max(20, (cH / imgH) * vTrack) : 0;
+  const hThumbLeft = showHBar ? Math.min(hTrack - hThumbW, (-transform.offsetX / (imgW - cW)) * (hTrack - hThumbW)) : 0;
+  const vThumbTop = showVBar ? Math.min(vTrack - vThumbH, (-transform.offsetY / (imgH - cH)) * (vTrack - vThumbH)) : 0;
+
   return (
     <div
       ref={containerRef}
@@ -574,6 +637,38 @@ export const AnnotationCanvas: React.FC = () => {
             <p className="text-lg">No image selected</p>
             <p className="text-sm">Add images to dataset/images/ folder</p>
           </div>
+        </div>
+      )}
+      {/* Horizontal scrollbar */}
+      {showHBar && (
+        <div
+          className="absolute bottom-0 left-0 bg-black/10"
+          style={{ width: hTrack, height: SCROLLBAR }}
+        >
+          <div
+            className="absolute top-0.5 bottom-0.5 bg-gray-500/60 rounded cursor-pointer hover:bg-gray-600/70"
+            style={{ left: hThumbLeft, width: hThumbW }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setScrollDrag({ axis: 'x', startPos: e.clientX, startOffset: transform.offsetX, imageEffectiveSize: imgW, containerDim: cW, trackSize: hTrack });
+            }}
+          />
+        </div>
+      )}
+      {/* Vertical scrollbar */}
+      {showVBar && (
+        <div
+          className="absolute top-0 right-0 bg-black/10"
+          style={{ width: SCROLLBAR, height: vTrack }}
+        >
+          <div
+            className="absolute left-0.5 right-0.5 bg-gray-500/60 rounded cursor-pointer hover:bg-gray-600/70"
+            style={{ top: vThumbTop, height: vThumbH }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setScrollDrag({ axis: 'y', startPos: e.clientY, startOffset: transform.offsetY, imageEffectiveSize: imgH, containerDim: cH, trackSize: vTrack });
+            }}
+          />
         </div>
       )}
     </div>
