@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCanvasStore } from '../store/canvasStore';
 import { useImageStore } from '../store/imageStore';
 import { useAnnotationStore } from '../store/annotationStore';
@@ -13,7 +13,19 @@ export const Toolbar: React.FC = () => {
   const { annotations, isDirty, setSaving, markClean } = useAnnotationStore();
   const updateAnnotationCount = useImageStore((s) => s.updateAnnotationCount);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [annotating, setAnnotating] = useState(false);
   const [annotateMessage, setAnnotateMessage] = useState<string | null>(null);
   const [annotateError, setAnnotateError] = useState<string | null>(null);
@@ -187,35 +199,37 @@ export const Toolbar: React.FC = () => {
       </button>
 
       {/* Auto-Annotate with Claude */}
-      <button
-        onClick={handleAutoAnnotate}
-        disabled={!canAnnotate}
-        title={
-          sampleCount === 0
-            ? 'Mark at least one image as a sample (★) and annotate it first'
-            : 'Auto-annotate remaining images using samples as few-shot examples'
-        }
-        className={`px-3 py-1.5 text-sm rounded flex items-center gap-1.5 ${
-          canAnnotate
-            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-        }`}
-      >
-        {annotating ? (
-          <>
-            <span className="animate-spin inline-block">&#8635;</span>
-            Annotating…
-          </>
-        ) : (
-          <>
-            <span>✦</span>
-            Auto-Annotate
-            {sampleCount > 0 && (
-              <span className="text-xs opacity-80">({sampleCount} sample{sampleCount !== 1 ? 's' : ''})</span>
-            )}
-          </>
-        )}
-      </button>
+      <div className="relative group">
+        <button
+          onClick={handleAutoAnnotate}
+          disabled={!canAnnotate}
+          className={`px-3 py-1.5 text-sm rounded flex items-center gap-1.5 ${
+            canAnnotate
+              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          {annotating ? (
+            <>
+              <span className="animate-spin inline-block">&#8635;</span>
+              Annotating…
+            </>
+          ) : (
+            <>
+              <span>✦</span>
+              Auto-Annotate
+              {sampleCount > 0 && (
+                <span className="text-xs opacity-80">({sampleCount} sample{sampleCount !== 1 ? 's' : ''})</span>
+              )}
+            </>
+          )}
+        </button>
+        <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1.5 z-50 w-56 leading-snug pointer-events-none">
+          {sampleCount === 0
+            ? '⚠ Mark at least one image as a sample (★) and annotate it first.'
+            : `Uses ${sampleCount} sample image${sampleCount !== 1 ? 's' : ''} as few-shot examples to automatically annotate the remaining images with Claude AI.`}
+        </div>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -233,30 +247,30 @@ export const Toolbar: React.FC = () => {
         <span className="text-sm text-green-600">{exportMessage}</span>
       )}
 
-      {/* Export Buttons */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Export:</span>
+      {/* Export Dropdown */}
+      <div className="relative" ref={exportRef}>
         <button
-          onClick={() => handleExport('yolo')}
+          onClick={() => setExportOpen((o) => !o)}
           disabled={exporting !== null}
-          className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
+          className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-1.5"
         >
-          {exporting === 'yolo' ? '...' : 'YOLO'}
+          {exporting ? `Exporting ${exporting.toUpperCase()}…` : 'Export'}
+          <span className="text-xs">▾</span>
         </button>
-        <button
-          onClick={() => handleExport('coco')}
-          disabled={exporting !== null}
-          className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50"
-        >
-          {exporting === 'coco' ? '...' : 'COCO'}
-        </button>
-        <button
-          onClick={() => handleExport('trocr')}
-          disabled={exporting !== null}
-          className="px-3 py-1.5 text-sm bg-teal-500 text-white rounded hover:bg-teal-600 disabled:opacity-50"
-        >
-          {exporting === 'trocr' ? '...' : 'TrOCR'}
-        </button>
+        {exportOpen && (
+          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-[120px]">
+            {(['yolo', 'coco', 'trocr'] as ExportFormat[]).map((fmt) => (
+              <button
+                key={fmt}
+                onClick={() => { handleExport(fmt); setExportOpen(false); }}
+                disabled={exporting !== null}
+                className="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 disabled:opacity-50"
+              >
+                {fmt.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

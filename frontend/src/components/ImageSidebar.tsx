@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { useImageStore } from '../store/imageStore';
 import { getImageUrl } from '../api/client';
-import { uploadImages, fetchImages, markAsSample } from '../api/images';
+import { uploadImages, fetchImages, markAsSample, deleteImage } from '../api/images';
 
 export const ImageSidebar: React.FC = () => {
-  const { images, currentIndex, setCurrentIndex, setImages, toggleSample, isLoading } =
+  const { images, currentIndex, setCurrentIndex, setImages, toggleSample, removeImage, isLoading } =
     useImageStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -47,6 +47,26 @@ export const ImageSidebar: React.FC = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleRemoveImage = async (e: React.MouseEvent, filename: string) => {
+    e.stopPropagation();
+    try {
+      await deleteImage(filename);
+      removeImage(filename);
+    } catch (err) {
+      console.error('Failed to remove image:', err);
+    }
+  };
+
+  const handleRemoveAllImages = async () => {
+    if (!window.confirm(`Remove all ${images.length} images from the gallery?`)) return;
+    try {
+      await Promise.all(images.map((img) => deleteImage(img.filename)));
+      setImages([]);
+    } catch (err) {
+      console.error('Failed to remove all images:', err);
     }
   };
 
@@ -136,7 +156,7 @@ export const ImageSidebar: React.FC = () => {
           </p>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {images.map((img, index) => (
           <div
             key={img.filename}
@@ -158,6 +178,14 @@ export const ImageSidebar: React.FC = () => {
                 className="w-full h-24 object-cover rounded bg-gray-300"
                 loading="lazy"
               />
+              {/* Remove button */}
+              <button
+                onClick={(e) => handleRemoveImage(e, img.filename)}
+                title="Remove image"
+                className="absolute top-1 left-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center hover:bg-red-600 text-xs leading-none"
+              >
+                ×
+              </button>
               {img.annotationCount > 0 && (
                 <span className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                   {img.annotationCount}
@@ -185,6 +213,14 @@ export const ImageSidebar: React.FC = () => {
             </p>
           </div>
         ))}
+      </div>
+      <div className="p-2 border-t border-gray-300">
+        <button
+          onClick={handleRemoveAllImages}
+          className="w-full px-3 py-1.5 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Remove All Images
+        </button>
       </div>
     </div>
   );

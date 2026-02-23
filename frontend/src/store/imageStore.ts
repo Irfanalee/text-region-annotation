@@ -13,6 +13,7 @@ interface ImageStore {
   prevImage: () => void;
   updateAnnotationCount: (filename: string, count: number) => void;
   toggleSample: (filename: string, isSample: boolean) => void;
+  removeImage: (filename: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   getCurrentImage: () => ImageData | null;
@@ -66,6 +67,14 @@ export const useImageStore = create<ImageStore>((set, get) => ({
         img.filename === filename ? { ...img, isSample } : img
       ),
     }));
+  },
+
+  removeImage: (filename) => {
+    set((state) => {
+      const newImages = state.images.filter((img) => img.filename !== filename);
+      const newIndex = Math.min(state.currentIndex, Math.max(0, newImages.length - 1));
+      return { images: newImages, currentIndex: newIndex };
+    });
   },
 
   setLoading: (loading) => set({ isLoading: loading }),
