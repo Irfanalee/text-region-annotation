@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 from pydantic import BaseModel
 import json
 import base64
 import re
+import asyncio
 
 from ..config import settings
 from ..schemas import OcrBox, InvoiceField, LineItem, InvoiceAnnotation
@@ -187,13 +189,21 @@ class AutoAnnotateResponse(BaseModel):
 
 # ── Endpoint ─────────────────────────────────────────────────────────────────
 
-@router.post("/auto-annotate", response_model=AutoAnnotateResponse)
+@router.post("/auto-annotate")
 async def auto_annotate(body: AutoAnnotateRequest):
-    """Use Claude to auto-annotate unannotated invoices using saved annotations as few-shot examples."""
+    """
+    Stream auto-annotation progress via Server-Sent Events.
+
+    Each SSE event is JSON:
+      {"type": "start",    "total": N}
+      {"type": "progress", "current": N, "total": N, "filename": "...", "status": "annotated"|"skipped"|"error", "fields_found": N, "message": "..."}
+      {"type": "done",     "total_annotated": N, "total_skipped": N, "total_errors": N}
+      {"type": "error",    "message": "..."}   ← fatal setup error
+    """
     if not settings.anthropic_api_key:
         raise HTTPException(
             status_code=400,
-            detail="ANTHROPIC_API_KEY is not set. Add it to backend/.env"
+            detail="ANTHROPIC_API_KEY is not set. Add it to backend/.env",
         )
 
     from anthropic import Anthropic
@@ -203,17 +213,16 @@ async def auto_annotate(body: AutoAnnotateRequest):
     ocr_dir = Path(settings.ocr_dir)
     ann_dir = Path(settings.annotations_dir)
 
-    # ── Collect annotated examples ────────────────────────────────────────────
+    # ── Collect annotated examples ──────────────────────────────────────────
     examples: list[tuple[dict, list[OcrBox]]] = []
     db = SessionLocal()
     try:
-        annotated_records = (
+        for record in (
             db.query(ImageRecord)
             .filter(ImageRecord.is_annotated == True)
             .limit(body.max_examples)
             .all()
-        )
-        for record in annotated_records:
+        ):
             ann_path = ann_dir / f"{Path(record.filename).stem}.json"
             ocr_path = ocr_dir / f"{Path(record.filename).stem}.json"
             if not ann_path.exists() or not ocr_path.exists():
@@ -229,10 +238,10 @@ async def auto_annotate(body: AutoAnnotateRequest):
     if not examples:
         raise HTTPException(
             status_code=400,
-            detail="No annotated invoices found. Annotate and save at least one invoice first."
+            detail="No annotated invoices found. Annotate and save at least one invoice first.",
         )
 
-    # ── Find unannotated images ───────────────────────────────────────────────
+    # ── Find targets ────────────────────────────────────────────────────────
     db = SessionLocal()
     try:
         query = db.query(ImageRecord)
@@ -242,96 +251,103 @@ async def auto_annotate(body: AutoAnnotateRequest):
     finally:
         db.close()
 
-    if not targets:
-        return AutoAnnotateResponse(
-            results=[],
-            total_annotated=0,
-            total_skipped=0,
-            total_errors=0,
-        )
+    media_type_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".bmp": "image/bmp", ".webp": "image/webp",
+    }
 
-    results: list[AutoAnnotateResult] = []
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data)}\n\n"
 
-    for record in targets:
-        filename = record.filename
-        image_path = images_dir / filename
-        ocr_path = ocr_dir / f"{Path(filename).stem}.json"
+    async def generate():
+        total = len(targets)
+        yield _sse({"type": "start", "total": total})
 
-        # Must have OCR
-        if not ocr_path.exists():
-            results.append(AutoAnnotateResult(
-                filename=filename, status="skipped",
-                message="OCR not run yet. Open the image in the UI first."
-            ))
-            continue
+        counts = {"annotated": 0, "skipped": 0, "error": 0}
 
-        if not image_path.exists():
-            results.append(AutoAnnotateResult(filename=filename, status="error", message="Image file missing"))
-            continue
+        for i, record in enumerate(targets):
+            filename = record.filename
+            image_path = images_dir / filename
+            ocr_path = ocr_dir / f"{Path(filename).stem}.json"
 
-        try:
-            with open(image_path, "rb") as f:
-                image_bytes = f.read()
-            with open(ocr_path) as f:
-                ocr_boxes = [OcrBox(**b) for b in json.load(f)]
+            # Yield a "working on it" ping so the client knows we're alive
+            yield _sse({"type": "working", "current": i + 1, "total": total, "filename": filename})
+            await asyncio.sleep(0)  # let the event loop flush
 
-            # Detect media type
-            suffix = Path(filename).suffix.lower()
-            media_type_map = {
-                ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                ".png": "image/png", ".bmp": "image/bmp",
-                ".webp": "image/webp",
-            }
-            media_type = media_type_map.get(suffix, "image/jpeg")
+            if not ocr_path.exists():
+                counts["skipped"] += 1
+                yield _sse({"type": "progress", "current": i + 1, "total": total,
+                             "filename": filename, "status": "skipped",
+                             "fields_found": 0, "message": "OCR not run yet — open in UI first"})
+                continue
 
-            messages = _build_messages(image_bytes, media_type, ocr_boxes, examples)
+            if not image_path.exists():
+                counts["error"] += 1
+                yield _sse({"type": "progress", "current": i + 1, "total": total,
+                             "filename": filename, "status": "error",
+                             "fields_found": 0, "message": "Image file missing"})
+                continue
 
-            response = client.messages.create(
-                model=settings.claude_model,
-                max_tokens=4096,
-                system=SYSTEM_PROMPT,
-                messages=messages,
-            )
-
-            raw = response.content[0].text.strip()
-
-            # Extract JSON array from response (strip any markdown fences)
-            json_match = re.search(r'\[.*\]', raw, re.DOTALL)
-            if not json_match:
-                raise ValueError(f"No JSON array found in response: {raw[:200]}")
-
-            assignments = json.loads(json_match.group())
-            annotation = _assignments_to_invoice(filename, assignments, ocr_boxes)
-
-            # Save
-            ann_path = ann_dir / f"{Path(filename).stem}.json"
-            ann_dir.mkdir(parents=True, exist_ok=True)
-            with open(ann_path, "w") as f:
-                json.dump(annotation.model_dump(), f, indent=2)
-
-            # Mark annotated in DB
-            db = SessionLocal()
             try:
-                rec = db.query(ImageRecord).filter(ImageRecord.filename == filename).first()
-                if rec:
-                    rec.is_annotated = True
-                    db.commit()
-            finally:
-                db.close()
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+                with open(ocr_path) as f:
+                    ocr_boxes = [OcrBox(**b) for b in json.load(f)]
 
-            fields_found = len(annotation.header_fields) + sum(
-                len(li.fields) for li in annotation.line_items
-            )
-            results.append(AutoAnnotateResult(
-                filename=filename, status="annotated", fields_found=fields_found
-            ))
+                suffix = Path(filename).suffix.lower()
+                media_type = media_type_map.get(suffix, "image/jpeg")
+                messages = _build_messages(image_bytes, media_type, ocr_boxes, examples)
 
-        except Exception as e:
-            results.append(AutoAnnotateResult(filename=filename, status="error", message=str(e)))
+                response = client.messages.create(
+                    model=settings.claude_model,
+                    max_tokens=4096,
+                    system=SYSTEM_PROMPT,
+                    messages=messages,
+                )
 
-    return AutoAnnotateResponse(
-        results=results,
-        total_annotated=sum(1 for r in results if r.status == "annotated"),
-        total_skipped=sum(1 for r in results if r.status == "skipped"),
-        total_errors=sum(1 for r in results if r.status == "error"),
+                raw = response.content[0].text.strip()
+                json_match = re.search(r'\[.*\]', raw, re.DOTALL)
+                if not json_match:
+                    raise ValueError(f"No JSON array in response: {raw[:200]}")
+
+                assignments = json.loads(json_match.group())
+                annotation = _assignments_to_invoice(filename, assignments, ocr_boxes)
+
+                ann_path = ann_dir / f"{Path(filename).stem}.json"
+                ann_dir.mkdir(parents=True, exist_ok=True)
+                with open(ann_path, "w") as f:
+                    json.dump(annotation.model_dump(), f, indent=2)
+
+                db2 = SessionLocal()
+                try:
+                    rec = db2.query(ImageRecord).filter(ImageRecord.filename == filename).first()
+                    if rec:
+                        rec.is_annotated = True
+                        db2.commit()
+                finally:
+                    db2.close()
+
+                fields_found = len(annotation.header_fields) + sum(len(li.fields) for li in annotation.line_items)
+                counts["annotated"] += 1
+                yield _sse({"type": "progress", "current": i + 1, "total": total,
+                             "filename": filename, "status": "annotated",
+                             "fields_found": fields_found, "message": ""})
+
+            except Exception as e:
+                counts["error"] += 1
+                yield _sse({"type": "progress", "current": i + 1, "total": total,
+                             "filename": filename, "status": "error",
+                             "fields_found": 0, "message": str(e)})
+
+            await asyncio.sleep(0)
+
+        yield _sse({"type": "done",
+                    "total_annotated": counts["annotated"],
+                    "total_skipped":   counts["skipped"],
+                    "total_errors":    counts["error"]})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

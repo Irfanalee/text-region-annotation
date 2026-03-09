@@ -13,6 +13,7 @@ export const Toolbar: React.FC = () => {
   const { isDirty, setSaving, markClean, buildSavePayload } = useInvoiceStore();
 
   const [annotating, setAnnotating] = useState(false);
+  const [annotateProgress, setAnnotateProgress] = useState<{ current: number; total: number; filename: string } | null>(null);
   const [annotateMsg, setAnnotateMsg] = useState<string | null>(null);
   const [annotateError, setAnnotateError] = useState<string | null>(null);
 
@@ -54,21 +55,37 @@ export const Toolbar: React.FC = () => {
     setAnnotating(true);
     setAnnotateMsg(null);
     setAnnotateError(null);
+    setAnnotateProgress(null);
     try {
-      const result = await autoAnnotate(false, 3);
-      const refreshed = await fetchImages();
-      setImages(refreshed);
-      if (result.total_annotated === 0 && result.total_errors === 0) {
-        setAnnotateMsg('Nothing to annotate — all invoices are already done.');
-      } else {
-        const parts = [];
-        if (result.total_annotated > 0) parts.push(`✓ ${result.total_annotated} annotated`);
-        if (result.total_skipped > 0)   parts.push(`⏭ ${result.total_skipped} skipped (no OCR)`);
-        if (result.total_errors > 0)    parts.push(`✗ ${result.total_errors} errors`);
-        setAnnotateMsg(parts.join('  '));
-      }
-      setTimeout(() => setAnnotateMsg(null), 6000);
+      await autoAnnotate(false, 3, (event) => {
+        if (event.type === 'start') {
+          setAnnotateProgress({ current: 0, total: event.total ?? 0, filename: '' });
+        } else if (event.type === 'working') {
+          setAnnotateProgress({
+            current: event.current ?? 0,
+            total: event.total ?? 0,
+            filename: event.filename ?? '',
+          });
+        } else if (event.type === 'progress') {
+          setAnnotateProgress({
+            current: event.current ?? 0,
+            total: event.total ?? 0,
+            filename: event.filename ?? '',
+          });
+        } else if (event.type === 'done') {
+          setAnnotateProgress(null);
+          const parts = [];
+          if ((event.total_annotated ?? 0) > 0) parts.push(`✓ ${event.total_annotated} annotated`);
+          if ((event.total_skipped ?? 0) > 0)   parts.push(`⏭ ${event.total_skipped} skipped`);
+          if ((event.total_errors ?? 0) > 0)     parts.push(`✗ ${event.total_errors} errors`);
+          setAnnotateMsg(parts.length ? parts.join('  ') : 'Nothing to annotate — all done.');
+          setTimeout(() => setAnnotateMsg(null), 6000);
+          // Refresh image list
+          fetchImages().then(setImages).catch(console.error);
+        }
+      });
     } catch (err: unknown) {
+      setAnnotateProgress(null);
       const msg = err instanceof Error ? err.message : String(err);
       setAnnotateError(msg.length > 80 ? msg.slice(0, 80) + '…' : msg);
       setTimeout(() => setAnnotateError(null), 8000);
@@ -198,7 +215,33 @@ export const Toolbar: React.FC = () => {
       <div className="flex-1" />
 
       {/* Feedback messages */}
-      {annotateMsg && (
+      {annotateProgress && (
+        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded px-2 py-1">
+          <span className="animate-spin text-indigo-500 text-sm">⟳</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs text-indigo-700 font-medium">
+              {annotateProgress.current}/{annotateProgress.total} invoices
+            </span>
+            {annotateProgress.filename && (
+              <span className="text-[10px] text-indigo-400 truncate max-w-[140px]">
+                {annotateProgress.filename}
+              </span>
+            )}
+          </div>
+          {/* Progress bar */}
+          <div className="w-16 h-1.5 bg-indigo-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+              style={{
+                width: annotateProgress.total > 0
+                  ? `${(annotateProgress.current / annotateProgress.total) * 100}%`
+                  : '0%',
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {annotateMsg && !annotateProgress && (
         <span className="text-xs text-indigo-700 font-medium bg-indigo-50 px-2 py-1 rounded">
           {annotateMsg}
         </span>
@@ -231,7 +274,6 @@ export const Toolbar: React.FC = () => {
             <><span>✦</span> Auto-Annotate</>
           )}
         </button>
-        {/* Tooltip */}
         <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1.5 z-50 w-64 leading-snug pointer-events-none">
           {annotatedCount === 0
             ? '⚠ Annotate and save at least one invoice manually first. Those become few-shot examples for Claude.'
