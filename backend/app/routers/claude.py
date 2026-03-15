@@ -14,6 +14,9 @@ from ..models import ImageRecord
 
 router = APIRouter(prefix="/api/claude", tags=["claude"])
 
+# Prevent concurrent auto-annotate runs to avoid runaway API costs
+_annotate_lock = asyncio.Lock()
+
 # ── Prompt ──────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are an invoice field extraction assistant.
@@ -200,6 +203,12 @@ async def auto_annotate(body: AutoAnnotateRequest):
       {"type": "done",     "total_annotated": N, "total_skipped": N, "total_errors": N}
       {"type": "error",    "message": "..."}   ← fatal setup error
     """
+    if _annotate_lock.locked():
+        raise HTTPException(
+            status_code=429,
+            detail="Auto-annotation already in progress. Wait for it to finish.",
+        )
+
     if not settings.anthropic_api_key:
         raise HTTPException(
             status_code=400,
@@ -260,91 +269,92 @@ async def auto_annotate(body: AutoAnnotateRequest):
         return f"data: {json.dumps(data)}\n\n"
 
     async def generate():
-        total = len(targets)
-        yield _sse({"type": "start", "total": total})
+        async with _annotate_lock:
+            total = len(targets)
+            yield _sse({"type": "start", "total": total})
 
-        counts = {"annotated": 0, "skipped": 0, "error": 0}
+            counts = {"annotated": 0, "skipped": 0, "error": 0}
 
-        for i, record in enumerate(targets):
-            filename = record.filename
-            image_path = images_dir / filename
-            ocr_path = ocr_dir / f"{Path(filename).stem}.json"
+            for i, record in enumerate(targets):
+                filename = record.filename
+                image_path = images_dir / filename
+                ocr_path = ocr_dir / f"{Path(filename).stem}.json"
 
-            # Yield a "working on it" ping so the client knows we're alive
-            yield _sse({"type": "working", "current": i + 1, "total": total, "filename": filename})
-            await asyncio.sleep(0)  # let the event loop flush
+                # Yield a "working on it" ping so the client knows we're alive
+                yield _sse({"type": "working", "current": i + 1, "total": total, "filename": filename})
+                await asyncio.sleep(0)  # let the event loop flush
 
-            if not ocr_path.exists():
-                counts["skipped"] += 1
-                yield _sse({"type": "progress", "current": i + 1, "total": total,
-                             "filename": filename, "status": "skipped",
-                             "fields_found": 0, "message": "OCR not run yet — open in UI first"})
-                continue
+                if not ocr_path.exists():
+                    counts["skipped"] += 1
+                    yield _sse({"type": "progress", "current": i + 1, "total": total,
+                                 "filename": filename, "status": "skipped",
+                                 "fields_found": 0, "message": "OCR not run yet — open in UI first"})
+                    continue
 
-            if not image_path.exists():
-                counts["error"] += 1
-                yield _sse({"type": "progress", "current": i + 1, "total": total,
-                             "filename": filename, "status": "error",
-                             "fields_found": 0, "message": "Image file missing"})
-                continue
+                if not image_path.exists():
+                    counts["error"] += 1
+                    yield _sse({"type": "progress", "current": i + 1, "total": total,
+                                 "filename": filename, "status": "error",
+                                 "fields_found": 0, "message": "Image file missing"})
+                    continue
 
-            try:
-                with open(image_path, "rb") as f:
-                    image_bytes = f.read()
-                with open(ocr_path) as f:
-                    ocr_boxes = [OcrBox(**b) for b in json.load(f)]
-
-                suffix = Path(filename).suffix.lower()
-                media_type = media_type_map.get(suffix, "image/jpeg")
-                messages = _build_messages(image_bytes, media_type, ocr_boxes, examples)
-
-                response = client.messages.create(
-                    model=settings.claude_model,
-                    max_tokens=4096,
-                    system=SYSTEM_PROMPT,
-                    messages=messages,
-                )
-
-                raw = response.content[0].text.strip()
-                json_match = re.search(r'\[.*\]', raw, re.DOTALL)
-                if not json_match:
-                    raise ValueError(f"No JSON array in response: {raw[:200]}")
-
-                assignments = json.loads(json_match.group())
-                annotation = _assignments_to_invoice(filename, assignments, ocr_boxes)
-
-                ann_path = ann_dir / f"{Path(filename).stem}.json"
-                ann_dir.mkdir(parents=True, exist_ok=True)
-                with open(ann_path, "w") as f:
-                    json.dump(annotation.model_dump(), f, indent=2)
-
-                db2 = SessionLocal()
                 try:
-                    rec = db2.query(ImageRecord).filter(ImageRecord.filename == filename).first()
-                    if rec:
-                        rec.is_annotated = True
-                        db2.commit()
-                finally:
-                    db2.close()
+                    with open(image_path, "rb") as f:
+                        image_bytes = f.read()
+                    with open(ocr_path) as f:
+                        ocr_boxes = [OcrBox(**b) for b in json.load(f)]
 
-                fields_found = len(annotation.header_fields) + sum(len(li.fields) for li in annotation.line_items)
-                counts["annotated"] += 1
-                yield _sse({"type": "progress", "current": i + 1, "total": total,
-                             "filename": filename, "status": "annotated",
-                             "fields_found": fields_found, "message": ""})
+                    suffix = Path(filename).suffix.lower()
+                    media_type = media_type_map.get(suffix, "image/jpeg")
+                    messages = _build_messages(image_bytes, media_type, ocr_boxes, examples)
 
-            except Exception as e:
-                counts["error"] += 1
-                yield _sse({"type": "progress", "current": i + 1, "total": total,
-                             "filename": filename, "status": "error",
-                             "fields_found": 0, "message": str(e)})
+                    response = client.messages.create(
+                        model=settings.claude_model,
+                        max_tokens=4096,
+                        system=SYSTEM_PROMPT,
+                        messages=messages,
+                    )
 
-            await asyncio.sleep(0)
+                    raw = response.content[0].text.strip()
+                    json_match = re.search(r'\[.*\]', raw, re.DOTALL)
+                    if not json_match:
+                        raise ValueError(f"No JSON array in response: {raw[:200]}")
 
-        yield _sse({"type": "done",
-                    "total_annotated": counts["annotated"],
-                    "total_skipped":   counts["skipped"],
-                    "total_errors":    counts["error"]})
+                    assignments = json.loads(json_match.group())
+                    annotation = _assignments_to_invoice(filename, assignments, ocr_boxes)
+
+                    ann_path = ann_dir / f"{Path(filename).stem}.json"
+                    ann_dir.mkdir(parents=True, exist_ok=True)
+                    with open(ann_path, "w") as f:
+                        json.dump(annotation.model_dump(), f, indent=2)
+
+                    db2 = SessionLocal()
+                    try:
+                        rec = db2.query(ImageRecord).filter(ImageRecord.filename == filename).first()
+                        if rec:
+                            rec.is_annotated = True
+                            db2.commit()
+                    finally:
+                        db2.close()
+
+                    fields_found = len(annotation.header_fields) + sum(len(li.fields) for li in annotation.line_items)
+                    counts["annotated"] += 1
+                    yield _sse({"type": "progress", "current": i + 1, "total": total,
+                                 "filename": filename, "status": "annotated",
+                                 "fields_found": fields_found, "message": ""})
+
+                except Exception as e:
+                    counts["error"] += 1
+                    yield _sse({"type": "progress", "current": i + 1, "total": total,
+                                 "filename": filename, "status": "error",
+                                 "fields_found": 0, "message": str(e)})
+
+                await asyncio.sleep(0)
+
+            yield _sse({"type": "done",
+                        "total_annotated": counts["annotated"],
+                        "total_skipped":   counts["skipped"],
+                        "total_errors":    counts["error"]})
 
     return StreamingResponse(
         generate(),

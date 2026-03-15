@@ -25,6 +25,15 @@ def is_valid_image(filename: str) -> bool:
     return ext in settings.allowed_extensions
 
 
+def _safe_image_path(filename: str) -> Path:
+    """Resolve filepath and guard against path traversal attacks."""
+    images_dir = Path(settings.images_dir).resolve()
+    filepath = (images_dir / filename).resolve()
+    if not filepath.is_relative_to(images_dir):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return filepath
+
+
 def _count_labeled_fields(filename: str) -> int:
     stem = Path(filename).stem
     ann_path = Path(settings.annotations_dir) / f"{stem}.json"
@@ -107,11 +116,11 @@ async def list_images():
 @router.get("/{filename}")
 async def get_image(filename: str):
     """Serve image file."""
-    filepath = Path(settings.images_dir) / filename
-    if not filepath.exists():
-        raise HTTPException(status_code=404, detail="Image not found")
     if not is_valid_image(filename):
         raise HTTPException(status_code=400, detail="Invalid image type")
+    filepath = _safe_image_path(filename)
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(filepath)
 
 
@@ -178,6 +187,7 @@ async def upload_images(files: List[UploadFile] = File(...)):
 @router.patch("/{filename}/sample")
 async def set_sample_status(filename: str, body: SetSampleRequest):
     """Mark or unmark an image as a sample."""
+    _safe_image_path(filename)  # guard against path traversal
     db = SessionLocal()
     try:
         image_record = db.query(ImageRecord).filter(
@@ -195,7 +205,7 @@ async def set_sample_status(filename: str, body: SetSampleRequest):
 @router.delete("/{filename}")
 async def delete_image(filename: str):
     """Delete an image and all associated data."""
-    filepath = Path(settings.images_dir) / filename
+    filepath = _safe_image_path(filename)
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Image not found")
 
